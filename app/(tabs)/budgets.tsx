@@ -1,16 +1,15 @@
-import MainLayout from '@/components/MainLayout';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  FlatList,
-  SafeAreaView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    FlatList,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 // import { useBudgetStore } from '@/state/budgetStore';
 // import { useExpenseStore } from '@/state/expenseStore';
@@ -75,7 +74,7 @@ const sampleBudgets: BudgetItem[] = [
   },
 ];
 
-const HomeScreen: React.FC = () => {
+const BudgetsScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const isDark = colorScheme === 'dark';
@@ -189,7 +188,6 @@ const HomeScreen: React.FC = () => {
   );
 
   return (
-    <MainLayout>
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <FlatList
@@ -204,7 +202,6 @@ const HomeScreen: React.FC = () => {
         <IconSymbol name="plus" size={20} color="#FFFFFF" />
       </TouchableOpacity>
     </SafeAreaView>
-    </MainLayout>
   );
 };
 
@@ -400,4 +397,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HomeScreen;
+export default BudgetsScreen;

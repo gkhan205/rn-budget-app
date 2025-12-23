@@ -1,112 +1,436 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import MainLayout from '@/components/MainLayout';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-export default function TabTwoScreen() {
+interface SettingsItem {
+  id: string;
+  title: string;
+  value?: string;
+  icon: string;
+  iconColor: string;
+  hasToggle?: boolean;
+  isEnabled?: boolean;
+}
+
+interface SettingsSection {
+  id: string;
+  title: string;
+  items: SettingsItem[];
+}
+
+export default function MoreScreen() {
+  const router = useRouter();
+  
+  const colors = {
+    background: '#1A1B1F',
+    cardBackground: '#2A2D32',
+    text: '#FFFFFF',
+    subText: '#9BA1A6',
+    primaryBlue: '#4A9EFF',
+    premiumBlue: '#4A9EFF',
+    border: '#404348',
+    sectionHeader: '#9BA1A6',
+  };
+
+  const sections: SettingsSection[] = [
+    {
+      id: 'transactions',
+      title: 'TRANSACTION & GENERAL',
+      items: [
+        {
+          id: 'currency',
+          title: 'Currency',
+          value: 'USD $',
+          icon: 'dollarsign.circle',
+          iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'monthly_start',
+          title: 'Monthly Start Date',
+          value: '1st',
+          icon: 'calendar',
+          iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'budget_carryover',
+          title: 'Budget Carry-over',
+          icon: 'chart.line.uptrend.xyaxis',
+          iconColor: colors.primaryBlue,
+          hasToggle: true,
+          isEnabled: true,
+        },
+        {
+          id: 'default_account',
+          title: 'Default Account',
+          value: 'Cash',
+          icon: 'creditcard',
+          iconColor: colors.primaryBlue,
+        },
+      ],
+    },
+    {
+      id: 'management',
+      title: 'MANAGEMENT',
+      items: [
+        {
+          id: 'categories',
+          title: 'Categories',
+          icon: 'folder',
+          iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'recurring_manager',
+          title: 'Recurring Manager',
+          icon: 'arrow.clockwise',
+          iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'accounts',
+          title: 'Accounts',
+          icon: 'building.columns',
+          iconColor: colors.primaryBlue,
+        },
+      ],
+    },
+    {
+      id: 'data_security',
+      title: 'DATA & SECURITY',
+      items: [
+        {
+          id: 'app_lock',
+          title: 'App Lock',
+          value: 'FaceID',
+          icon: 'lock',
+          iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'backup_restore',
+          title: 'Backup & Restore',
+          value: 'Last: Today',
+          icon: 'icloud',
+          iconColor: colors.primaryBlue,
+        },
+      ],
+    },
+    {
+      id: 'app_info',
+      title: 'APP INFO',
+      items: [
+        {
+          id: 'theme',
+          title: 'Theme',
+          value: 'Dark',
+          icon: 'moon',
+          iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'about',
+          title: 'About',
+          icon: 'info.circle',
+          iconColor: colors.primaryBlue,
+        },
+      ],
+    },
+  ];
+
+  const renderHeader = () => (
+    <View style={[styles.header, { backgroundColor: colors.background }]}>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>More</Text>
+    </View>
+  );
+
+  const renderPremiumCard = () => (
+    <View style={[styles.premiumCard, { backgroundColor: colors.premiumBlue }]}>
+      <View style={styles.premiumIcon}>
+        <IconSymbol name="star.fill" size={20} color="#FFFFFF" />
+      </View>
+      
+      <View style={styles.premiumContent}>
+        <Text style={styles.premiumTitle}>Upgrade to Premium</Text>
+        <Text style={styles.premiumSubtitle}>
+          Unlock Cloud Sync, Unlimited Budgets, and AI insights.
+        </Text>
+        
+        <TouchableOpacity 
+          style={styles.premiumButton}
+          onPress={() => router.push('/premium')}
+        >
+          <Text style={styles.premiumButtonText}>Go Pro</Text>
+          <IconSymbol name="arrow.right" size={16} color={colors.background} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderOnboardingCard = () => (
+    <View style={[styles.premiumCard, { backgroundColor: '#2A2D32' }]}>
+      <View style={styles.premiumIcon}>
+        <IconSymbol name="graduationcap.fill" size={20} color={colors.primaryBlue} />
+      </View>
+      
+      <View style={styles.premiumContent}>
+        <Text style={styles.premiumTitle}>Try Onboarding Flow</Text>
+        <Text style={styles.premiumSubtitle}>
+          Experience the complete onboarding process with all 6 screens.
+        </Text>
+        
+        <TouchableOpacity 
+          style={styles.premiumButton}
+          onPress={() => router.push('/onboarding/welcome')}
+        >
+          <Text style={styles.premiumButtonText}>Start Onboarding</Text>
+          <IconSymbol name="arrow.right" size={16} color={colors.background} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderToggle = (isEnabled: boolean) => (
+    <View style={[
+      styles.toggle,
+      { backgroundColor: isEnabled ? colors.primaryBlue : colors.border }
+    ]}>
+      <View style={[
+        styles.toggleKnob,
+        {
+          backgroundColor: '#FFFFFF',
+          transform: [{ translateX: isEnabled ? 20 : 2 }]
+        }
+      ]} />
+    </View>
+  );
+
+  const renderSettingsItem = (item: SettingsItem) => (
+    <TouchableOpacity
+      key={item.id}
+      style={[styles.settingsItem, { borderBottomColor: colors.border }]}
+    >
+      <View style={styles.itemLeft}>
+        <View style={[styles.itemIcon, { backgroundColor: item.iconColor + '20' }]}>
+          <IconSymbol 
+            name={item.icon as any} 
+            size={20} 
+            color={item.iconColor} 
+          />
+        </View>
+        <Text style={[styles.itemTitle, { color: colors.text }]}>
+          {item.title}
+        </Text>
+      </View>
+      
+      <View style={styles.itemRight}>
+        {item.hasToggle ? (
+          renderToggle(item.isEnabled || false)
+        ) : (
+          <>
+            {item.value && (
+              <Text style={[styles.itemValue, { color: colors.subText }]}>
+                {item.value}
+              </Text>
+            )}
+            <IconSymbol name="chevron.right" size={16} color={colors.subText} />
+          </>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderSection = (section: SettingsSection) => (
+    <View key={section.id} style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.sectionHeader }]}>
+        {section.title}
+      </Text>
+      <View style={[styles.sectionContent, { backgroundColor: colors.cardBackground }]}>
+        {section.items.map(renderSettingsItem)}
+      </View>
+    </View>
+  );
+
+  const renderFooter = () => (
+    <View style={styles.footer}>
+      <Text style={[styles.footerText, { color: colors.subText }]}>
+        Version 2.4.0 (Build 302)
+      </Text>
+      <View style={styles.footerMade}>
+        <Text style={[styles.footerText, { color: colors.subText }]}>
+          Made with 
+        </Text>
+        <IconSymbol name="heart.fill" size={12} color="#E74C3C" />
+        <Text style={[styles.footerText, { color: colors.subText }]}>
+          {' '}by BudgetApp
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <MainLayout>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {renderHeader()}
+        
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderPremiumCard()}
+          {renderOnboardingCard()}
+          
+          {sections.map(renderSection)}
+          
+          {renderFooter()}
+        </ScrollView>
+      </View>
+    </MainLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  premiumCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 16,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  premiumIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  premiumContent: {
+    flex: 1,
+  },
+  premiumTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  premiumSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  premiumButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  premiumButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1B1F',
+    marginRight: 8,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginHorizontal: 20,
+  },
+  sectionContent: {
+    marginHorizontal: 20,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  settingsItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  itemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  itemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  itemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemValue: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  toggle: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     position: 'absolute',
   },
-  titleContainer: {
+  footer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+  },
+  footerText: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  footerMade: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
   },
 });
