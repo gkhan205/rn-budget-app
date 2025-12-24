@@ -1,5 +1,4 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useExpenseExport } from '@/hooks/useExpenseExport';
 import React from 'react';
 import {
@@ -23,8 +22,6 @@ export const ExpenseExportModal: React.FC<ExpenseExportModalProps> = ({
   onClose,
   budgetId,
 }) => {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const {
     isExporting,
     exportToCSV,
@@ -37,10 +34,10 @@ export const ExpenseExportModal: React.FC<ExpenseExportModalProps> = ({
   } = useExpenseExport();
 
   const colors = {
-    background: isDark ? '#1A1B1F' : '#FFFFFF',
-    cardBackground: isDark ? '#2A2D32' : '#F5F5F5',
-    text: isDark ? '#FFFFFF' : '#000000',
-    subText: isDark ? '#9BA1A6' : '#666666',
+    background: '#1A1B1F',
+    cardBackground: '#2A2D32',
+    text: '#FFFFFF',
+    subText: '#9BA1A6',
     primaryBlue: '#4A9EFF',
     green: '#2ECC71',
     orange: '#FF8A4A',

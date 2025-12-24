@@ -1,5 +1,4 @@
-import { DatabaseBackupModal } from '@/components/DatabaseBackupModal';
-import { ExpenseExportModal } from '@/components/ExpenseExportModal';
+import MainLayout from '@/components/MainLayout';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Budget } from '@/db/schema/budgets';
 import { BudgetService } from '@/db/services/budgetService';
@@ -56,14 +55,12 @@ const BudgetsScreen: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isExportModalVisible, setIsExportModalVisible] = useState(false);
-  const [isBackupModalVisible, setIsBackupModalVisible] = useState(false);
 
   const colors = {
-    background: isDark ? '#1A1B1F' : '#F5F5F5',
-    cardBackground: isDark ? '#2A2D32' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    subText: isDark ? '#9BA1A6' : '#666666',
+    background: '#1A1B1F', // Force dark background
+    cardBackground: '#2A2D32', // Force dark card background
+    text: '#FFFFFF', // Force white text
+    subText: '#9BA1A6', // Force light gray subtext
     headerBackground: '#1A1B1F', // Always dark to match design
     primaryBlue: '#4A9EFF',
     orange: '#FF8A4A',
@@ -339,23 +336,9 @@ const BudgetsScreen: React.FC = () => {
             <IconSymbol name="chevron.down" size={12} color="#9BA1A6" />
           </TouchableOpacity>
         </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity 
-            style={styles.backupButton} 
-            onPress={() => setIsBackupModalVisible(true)}
-          >
-            <IconSymbol name="server.rack" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.exportButton} 
-            onPress={() => setIsExportModalVisible(true)}
-          >
-            <IconSymbol name="square.and.arrow.up" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.addButton} onPress={handleAddBudget}>
-            <IconSymbol name="plus" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddBudget}>
+          <IconSymbol name="plus" size={18} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
       <View style={[styles.summaryContainer, { backgroundColor: colors.headerBackground }]}>
@@ -420,23 +403,15 @@ const BudgetsScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      {renderContent()}
-      <TouchableOpacity style={styles.fab} onPress={handleAddBudget}>
-        <IconSymbol name="plus" size={20} color="#FFFFFF" />
-      </TouchableOpacity>
-      
-      <ExpenseExportModal
-        visible={isExportModalVisible}
-        onClose={() => setIsExportModalVisible(false)}
-      />
-      
-      <DatabaseBackupModal
-        visible={isBackupModalVisible}
-        onClose={() => setIsBackupModalVisible(false)}
-      />
-    </SafeAreaView>
+    <MainLayout>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        {renderContent()}
+        <TouchableOpacity style={styles.fab} onPress={handleAddBudget}>
+          <IconSymbol name="plus" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+      </SafeAreaView>
+    </MainLayout>
   );
 };
 
@@ -480,29 +455,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#4A9EFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  exportButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#4A9EFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  backupButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#9B59B6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
   },
   summaryContainer: {
     paddingHorizontal: 20,
@@ -637,7 +589,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 30,
+    bottom: 140, // Moved further down to accommodate the tab bar
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -716,7 +668,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 24
   },
   errorTitle: {
     fontSize: 20,

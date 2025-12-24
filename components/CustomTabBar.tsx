@@ -21,11 +21,11 @@ interface TabItem {
 }
 
 const tabs: TabItem[] = [
-    { key: 'home', label: 'Home', icon: 'house.fill', route: '/budgets' },
-    { key: 'stats', label: 'Stats', icon: 'chart.pie.fill', route: '/stats' },
-    { key: 'transact', label: 'Transact', icon: 'arrow.left.arrow.right', route: '/add-transaction' },
-    { key: 'analytics', label: 'Stats', icon: 'chart.bar.fill', route: '/analytics' },
-    { key: 'settings', label: 'Settings', icon: 'gearshape.fill', route: '/settings' },
+    { key: 'home', label: 'Home', icon: 'house.fill', route: '/(tabs)/budgets' },
+    { key: 'transactions', label: 'Transactions', icon: 'list.bullet', route: '/(tabs)/transactions' },
+    // { key: 'add', label: 'Add', icon: 'plus', route: '/add-transaction' },
+    { key: 'stats', label: 'Stats', icon: 'chart.pie.fill', route: '/(tabs)/stats' },
+    { key: 'settings', label: 'Settings', icon: 'gearshape.fill', route: '/(tabs)/explore' },
 ];
 
 const CustomTabBar: React.FC<TabBarProps> = ({ activeTab, onTabPress }) => {
@@ -47,28 +47,34 @@ const CustomTabBar: React.FC<TabBarProps> = ({ activeTab, onTabPress }) => {
                 paddingBottom: insets.bottom,
             }
         ]}>
-            {tabs.map((tab) => {
+            {tabs.map((tab, index) => {
                 const isActive = activeTab === tab.key;
+                const isAddButton = tab.key === 'add';
+                
                 return (
                     <TouchableOpacity
                         key={tab.key}
-                        style={styles.tabItem}
+                        style={[
+                            styles.tabItem,
+                            isAddButton && styles.addButtonTab
+                        ]}
                         onPress={() => onTabPress(tab.key)}
                         activeOpacity={0.7}
                     >
                         <View style={[
                             styles.iconContainer,
-                            isActive && { backgroundColor: colors.activeBlue + '20' }
+                            isActive && !isAddButton && { backgroundColor: colors.activeBlue + '20' },
+                            isAddButton && styles.addButtonContainer
                         ]}>
                             <IconSymbol
                                 name={tab.icon as any}
-                                size={20}
-                                color={isActive ? colors.activeBlue : colors.inactiveGray}
+                                size={isAddButton ? 24 : 20}
+                                color={isAddButton ? '#FFFFFF' : (isActive ? colors.activeBlue : colors.inactiveGray)}
                             />
                         </View>
                         <Text style={[
                             styles.label,
-                            { color: isActive ? colors.activeBlue : colors.inactiveGray }
+                            { color: isAddButton ? colors.activeBlue : (isActive ? colors.activeBlue : colors.inactiveGray) }
                         ]}>
                             {tab.label}
                         </Text>
@@ -103,6 +109,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 8,
     },
+    addButtonTab: {
+        marginTop: -20, // Pop up effect
+    },
     iconContainer: {
         width: 32,
         height: 32,
@@ -110,6 +119,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 4,
+    },
+    addButtonContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#4A9EFF',
+        shadowColor: '#4A9EFF',
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
     label: {
         fontSize: 10,

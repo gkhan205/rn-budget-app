@@ -25,15 +25,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     useEffect(() => {
         const currentPath = segments.join('/');
         
-        if (currentPath === '' || currentPath === 'index') {
+        if (currentPath === '' || currentPath === 'index' || currentPath === '(tabs)/budgets' || currentPath.includes('budgets')) {
             setActiveTab('home');
+        } else if (currentPath.includes('transactions') || currentPath === '(tabs)/transactions') {
+            setActiveTab('transactions');
+        } else if (currentPath.includes('add-transaction')) {
+            setActiveTab('add');
         } else if (currentPath.includes('stats') || currentPath === '(tabs)/stats') {
             setActiveTab('stats');
-        } else if (currentPath.includes('add-transaction')) {
-            setActiveTab('transact');
-        } else if (currentPath.includes('analytics')) {
-            setActiveTab('analytics');
-        } else if (currentPath.includes('settings') || currentPath.includes('explore')) {
+        } else if (currentPath.includes('settings') || currentPath.includes('explore') || currentPath === '(tabs)/explore') {
             setActiveTab('settings');
         }
     }, [segments]);
@@ -43,16 +43,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         
         switch (tab) {
             case 'home':
-                router.push('/');
+                router.push('/(tabs)/budgets');
+                break;
+            case 'transactions':
+                router.push('/(tabs)/transactions');
+                break;
+            case 'add':
+                router.push('/add-transaction');
                 break;
             case 'stats':
                 router.push('/(tabs)/stats');
-                break;
-            case 'transact':
-                router.push('/add-transaction');
-                break;
-            case 'analytics':
-                router.push('/(tabs)/transactions');
                 break;
             case 'settings':
                 router.push('/(tabs)/explore');

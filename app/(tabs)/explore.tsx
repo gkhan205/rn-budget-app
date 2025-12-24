@@ -1,7 +1,9 @@
+import { DatabaseBackupModal } from '@/components/DatabaseBackupModal';
+import { ExpenseExportModal } from '@/components/ExpenseExportModal';
 import MainLayout from '@/components/MainLayout';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -28,6 +30,8 @@ interface SettingsSection {
 
 export default function MoreScreen() {
   const router = useRouter();
+  const [isExportModalVisible, setIsExportModalVisible] = useState(false);
+  const [isBackupModalVisible, setIsBackupModalVisible] = useState(false);
   
   const colors = {
     background: '#1A1B1F',
@@ -117,6 +121,18 @@ export default function MoreScreen() {
           value: 'Last: Today',
           icon: 'icloud',
           iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'export_data',
+          title: 'Export Data',
+          icon: 'square.and.arrow.up',
+          iconColor: colors.primaryBlue,
+        },
+        {
+          id: 'import_backup',
+          title: 'Database Backup',
+          icon: 'server.rack',
+          iconColor: '#9B59B6',
         },
       ],
     },
@@ -208,40 +224,52 @@ export default function MoreScreen() {
     </View>
   );
 
-  const renderSettingsItem = (item: SettingsItem) => (
-    <TouchableOpacity
-      key={item.id}
-      style={[styles.settingsItem, { borderBottomColor: colors.border }]}
-    >
-      <View style={styles.itemLeft}>
-        <View style={[styles.itemIcon, { backgroundColor: item.iconColor + '20' }]}>
-          <IconSymbol 
-            name={item.icon as any} 
-            size={20} 
-            color={item.iconColor} 
-          />
+  const renderSettingsItem = (item: SettingsItem) => {
+    const handlePress = () => {
+      if (item.id === 'export_data') {
+        setIsExportModalVisible(true);
+      } else if (item.id === 'import_backup') {
+        setIsBackupModalVisible(true);
+      }
+      // Add other navigation logic here as needed
+    };
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={[styles.settingsItem, { borderBottomColor: colors.border }]}
+        onPress={handlePress}
+      >
+        <View style={styles.itemLeft}>
+          <View style={[styles.itemIcon, { backgroundColor: item.iconColor + '20' }]}>
+            <IconSymbol 
+              name={item.icon as any} 
+              size={20} 
+              color={item.iconColor} 
+            />
+          </View>
+          <Text style={[styles.itemTitle, { color: colors.text }]}>
+            {item.title}
+          </Text>
         </View>
-        <Text style={[styles.itemTitle, { color: colors.text }]}>
-          {item.title}
-        </Text>
-      </View>
-      
-      <View style={styles.itemRight}>
-        {item.hasToggle ? (
-          renderToggle(item.isEnabled || false)
-        ) : (
-          <>
-            {item.value && (
-              <Text style={[styles.itemValue, { color: colors.subText }]}>
-                {item.value}
-              </Text>
-            )}
-            <IconSymbol name="chevron.right" size={16} color={colors.subText} />
-          </>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+        
+        <View style={styles.itemRight}>
+          {item.hasToggle ? (
+            renderToggle(item.isEnabled || false)
+          ) : (
+            <>
+              {item.value && (
+                <Text style={[styles.itemValue, { color: colors.subText }]}>
+                  {item.value}
+                </Text>
+              )}
+              <IconSymbol name="chevron.right" size={16} color={colors.subText} />
+            </>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderSection = (section: SettingsSection) => (
     <View key={section.id} style={styles.section}>
@@ -288,6 +316,16 @@ export default function MoreScreen() {
           
           {renderFooter()}
         </ScrollView>
+        
+        <ExpenseExportModal
+          visible={isExportModalVisible}
+          onClose={() => setIsExportModalVisible(false)}
+        />
+        
+        <DatabaseBackupModal
+          visible={isBackupModalVisible}
+          onClose={() => setIsBackupModalVisible(false)}
+        />
       </View>
     </MainLayout>
   );

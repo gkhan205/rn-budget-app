@@ -1,5 +1,4 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useDatabaseBackup } from '@/hooks/useDatabaseBackup';
 import React, { useEffect, useState } from 'react';
 import {
@@ -22,8 +21,6 @@ export const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({
   visible,
   onClose,
 }) => {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   const [databaseStats, setDatabaseStats] = useState<any>(null);
   
   const {
@@ -38,10 +35,10 @@ export const DatabaseBackupModal: React.FC<DatabaseBackupModalProps> = ({
   } = useDatabaseBackup();
 
   const colors = {
-    background: isDark ? '#1A1B1F' : '#FFFFFF',
-    cardBackground: isDark ? '#2A2D32' : '#F5F5F5',
-    text: isDark ? '#FFFFFF' : '#000000',
-    subText: isDark ? '#9BA1A6' : '#666666',
+    background: '#1A1B1F',
+    cardBackground: '#2A2D32',
+    text: '#FFFFFF',
+    subText: '#9BA1A6',
     primaryBlue: '#4A9EFF',
     green: '#2ECC71',
     orange: '#FF8A4A',

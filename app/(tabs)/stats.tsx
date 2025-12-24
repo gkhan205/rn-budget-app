@@ -3,7 +3,6 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BudgetService } from '@/db/services/budgetService';
 import type { BudgetPerformanceStats, CategorySpendingStats, DailySpendingTrend, RecurringVsNonRecurringStats } from '@/db/services/statsService';
 import { StatsService } from '@/db/services/statsService';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -23,14 +22,12 @@ interface Budget {
 
 const StatsScreen: React.FC = () => {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
   
   // State management
   const [selectedPeriod, setSelectedPeriod] = useState('Month');
   const [selectedTab, setSelectedTab] = useState('Expense');
   const [selectedBudget, setSelectedBudget] = useState<string | null>(null);
-  const [customDateRange, setCustomDateRange] = useState<{ start: Date; end: Date } | null>(null);
+  const [customDateRange] = useState<{ start: Date; end: Date } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,16 +42,16 @@ const StatsScreen: React.FC = () => {
   const [availableBudgets, setAvailableBudgets] = useState<Budget[]>([]);
 
   const colors = {
-    background: isDark ? '#1A1B1F' : '#F5F5F5',
-    cardBackground: isDark ? '#2A2D32' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#000000',
-    subText: isDark ? '#9BA1A6' : '#666666',
+    background: '#1A1B1F',
+    cardBackground: '#2A2D32',
+    text: '#FFFFFF',
+    subText: '#9BA1A6',
     primaryBlue: '#4A9EFF',
     green: '#2ECC71',
     red: '#E74C3C',
     orange: '#FF8A4A',
     purple: '#9B59B6',
-    border: isDark ? '#404348' : '#E0E0E0',
+    border: '#404348',
     chartLine: '#4A9EFF',
   };
 
