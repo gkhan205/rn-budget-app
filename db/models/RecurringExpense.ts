@@ -1,50 +1,41 @@
-import Realm from 'realm';
+// TODO: SQLite RecurringExpense Model
+// This will be replaced with SQLite table schema when SQLite is implemented
 
 export type FrequencyType = 'monthly' | 'weekly' | 'yearly' | 'custom';
 
-export class RecurringExpense extends Realm.Object<RecurringExpense> {
-  id!: string;
-  budgetId!: string;
-  name!: string;
-  amount!: number;
-  frequency!: FrequencyType;
-  dueDay!: number | null;
-  startDate!: Date;
-  endDate!: Date | null;
-  accountId!: string | null;
-  autoAdd!: boolean;
-  isActive!: boolean;
+/**
+ * RecurringExpense interface for TypeScript type safety
+ * TODO: Convert to SQLite table schema
+ */
+export interface RecurringExpense {
+  id: string;
+  budgetId: string;
+  name: string;
+  amount: number;
+  frequency: FrequencyType;
+  dueDay: number | null;
+  startDate: Date;
+  endDate: Date | null;
+  accountId: string | null;
+  autoAdd: boolean;
+  isActive: boolean;
+}
 
-  static schema: Realm.ObjectSchema = {
-    name: 'RecurringExpense',
-    primaryKey: 'id',
-    properties: {
-      id: 'string',
-      budgetId: 'string',
-      name: 'string',
-      amount: 'double',
-      frequency: 'string',
-      dueDay: 'int?',
-      startDate: 'date',
-      endDate: 'date?',
-      accountId: 'string?',
-      autoAdd: { type: 'bool', default: false },
-      isActive: { type: 'bool', default: true },
-    },
-  };
-
+/**
+ * RecurringExpense database operations and business logic
+ * TODO: Implement with SQLite queries
+ */
+export class RecurringExpenseService {
   /**
    * Helper function to check if the recurring expense is due on a given date
-   * @param checkDate - The date to check against
-   * @returns boolean - true if the expense is due on the given date
    */
-  isDueOnDate(checkDate: Date): boolean {
-    if (!this.isActive) {
+  static isDueOnDate(recurringExpense: RecurringExpense, checkDate: Date): boolean {
+    if (!recurringExpense.isActive) {
       return false;
     }
 
-    const startDate = new Date(this.startDate);
-    const endDate = this.endDate ? new Date(this.endDate) : null;
+    const startDate = new Date(recurringExpense.startDate);
+    const endDate = recurringExpense.endDate ? new Date(recurringExpense.endDate) : null;
     
     // Check if the check date is before the start date
     if (checkDate < startDate) {
@@ -56,161 +47,154 @@ export class RecurringExpense extends Realm.Object<RecurringExpense> {
       return false;
     }
 
-    // Check based on frequency
-    switch (this.frequency) {
+    switch (recurringExpense.frequency) {
       case 'monthly':
-        return this.isMonthlyDue(checkDate);
-      
+        return this.isMonthlyDue(recurringExpense, checkDate);
       case 'weekly':
-        return this.isWeeklyDue(checkDate);
-      
+        return this.isWeeklyDue(recurringExpense, checkDate, startDate);
       case 'yearly':
-        return this.isYearlyDue(checkDate);
-      
+        return this.isYearlyDue(recurringExpense, checkDate);
       case 'custom':
-        return this.isCustomDue(checkDate);
-      
+        // TODO: Implement custom frequency logic
+        return false;
       default:
         return false;
     }
   }
 
   /**
-   * Check if expense is due for monthly frequency
+   * Helper function to check if monthly recurring expense is due
    */
-  private isMonthlyDue(checkDate: Date): boolean {
-    if (this.dueDay === null) {
+  private static isMonthlyDue(recurringExpense: RecurringExpense, checkDate: Date): boolean {
+    if (!recurringExpense.dueDay) {
       return false;
     }
 
+    const dueDay = recurringExpense.dueDay;
     const checkDay = checkDate.getDate();
-    const daysInMonth = new Date(checkDate.getFullYear(), checkDate.getMonth() + 1, 0).getDate();
     
-    // Handle cases where dueDay is greater than days in current month (e.g., 31st in February)
-    const effectiveDueDay = Math.min(this.dueDay, daysInMonth);
+    // Handle months with fewer days than the due day
+    const lastDayOfMonth = new Date(checkDate.getFullYear(), checkDate.getMonth() + 1, 0).getDate();
+    const effectiveDueDay = Math.min(dueDay, lastDayOfMonth);
     
     return checkDay === effectiveDueDay;
   }
 
   /**
-   * Check if expense is due for weekly frequency
+   * Helper function to check if weekly recurring expense is due
    */
-  private isWeeklyDue(checkDate: Date): boolean {
-    if (this.dueDay === null) {
-      return false;
-    }
-
-    // dueDay represents day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    const checkDayOfWeek = checkDate.getDay();
-    return checkDayOfWeek === this.dueDay;
+  private static isWeeklyDue(recurringExpense: RecurringExpense, checkDate: Date, startDate: Date): boolean {
+    const dayOfWeek = startDate.getDay();
+    return checkDate.getDay() === dayOfWeek;
   }
 
   /**
-   * Check if expense is due for yearly frequency
+   * Helper function to check if yearly recurring expense is due
    */
-  private isYearlyDue(checkDate: Date): boolean {
-    const startDate = new Date(this.startDate);
-    const checkMonth = checkDate.getMonth();
-    const checkDay = checkDate.getDate();
-    const startMonth = startDate.getMonth();
-    const startDay = startDate.getDate();
-
-    // Check if it's the same month and day as the start date
-    if (checkMonth === startMonth) {
-      // Handle leap year edge case for February 29th
-      if (startMonth === 1 && startDay === 29) { // February 29th
-        const isLeapYear = (year: number) => (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-        const checkYear = checkDate.getFullYear();
-        
-        if (!isLeapYear(checkYear)) {
-          // If current year is not a leap year, use February 28th
-          return checkDay === 28;
-        }
-      }
-      
-      return checkDay === startDay;
-    }
-    
-    return false;
+  private static isYearlyDue(recurringExpense: RecurringExpense, checkDate: Date): boolean {
+    const startDate = new Date(recurringExpense.startDate);
+    return checkDate.getMonth() === startDate.getMonth() && 
+           checkDate.getDate() === startDate.getDate();
   }
 
   /**
-   * Check if expense is due for custom frequency
-   * For custom frequency, you might want to implement your own logic
-   * This is a placeholder implementation
+   * Get the next due date for the recurring expense
    */
-  private isCustomDue(checkDate: Date): boolean {
-    // Placeholder for custom frequency logic
-    // You can implement custom logic based on your requirements
-    // For example, every X days, specific dates, etc.
-    
-    // Default implementation: check if it matches the start date's day of month
-    if (this.dueDay !== null) {
-      return this.isMonthlyDue(checkDate);
-    }
-    
-    return false;
-  }
-
-  /**
-   * Get the next due date after the given date
-   * @param fromDate - The date to calculate from (defaults to today)
-   * @returns Date | null - The next due date or null if no future due date
-   */
-  getNextDueDate(fromDate: Date = new Date()): Date | null {
-    if (!this.isActive) {
+  static getNextDueDate(recurringExpense: RecurringExpense, fromDate?: Date): Date | null {
+    if (!recurringExpense.isActive) {
       return null;
     }
 
-    const startDate = new Date(this.startDate);
-    const endDate = this.endDate ? new Date(this.endDate) : null;
-    
-    // If fromDate is before start date, return start date if it matches the pattern
-    if (fromDate < startDate) {
-      if (this.isDueOnDate(startDate)) {
-        return startDate;
-      }
-      fromDate = new Date(startDate);
-    }
+    const currentDate = fromDate || new Date();
+    const startDate = new Date(recurringExpense.startDate);
+    const endDate = recurringExpense.endDate ? new Date(recurringExpense.endDate) : null;
 
-    // Search for the next due date (limit search to avoid infinite loops)
-    const maxDaysToCheck = this.frequency === 'yearly' ? 400 : 60;
-    let checkDate = new Date(fromDate);
-    checkDate.setDate(checkDate.getDate() + 1); // Start from tomorrow
-    
-    for (let i = 0; i < maxDaysToCheck; i++) {
+    // Start checking from the later of currentDate or startDate
+    let checkDate = new Date(Math.max(currentDate.getTime(), startDate.getTime()));
+
+    // Look ahead up to 2 years to find the next due date
+    const maxLookAhead = new Date(checkDate.getTime() + (2 * 365 * 24 * 60 * 60 * 1000));
+
+    while (checkDate <= maxLookAhead) {
+      // Check if we've passed the end date
       if (endDate && checkDate > endDate) {
         return null;
       }
-      
-      if (this.isDueOnDate(checkDate)) {
-        return new Date(checkDate);
+
+      if (this.isDueOnDate(recurringExpense, checkDate)) {
+        return checkDate;
       }
-      
+
+      // Move to the next day
       checkDate.setDate(checkDate.getDate() + 1);
     }
-    
+
     return null;
   }
 
   /**
-   * Get all due dates within a date range
-   * @param startRange - Start of the date range
-   * @param endRange - End of the date range
-   * @returns Date[] - Array of due dates within the range
+   * Format the frequency as a human-readable string
    */
-  getDueDatesInRange(startRange: Date, endRange: Date): Date[] {
-    const dueDates: Date[] = [];
-    const checkDate = new Date(startRange);
-    
-    while (checkDate <= endRange) {
-      if (this.isDueOnDate(checkDate)) {
-        dueDates.push(new Date(checkDate));
-      }
-      checkDate.setDate(checkDate.getDate() + 1);
+  static formatFrequency(recurringExpense: RecurringExpense): string {
+    switch (recurringExpense.frequency) {
+      case 'monthly':
+        if (recurringExpense.dueDay) {
+          return `Monthly on the ${this.getOrdinalNumber(recurringExpense.dueDay)}`;
+        }
+        return 'Monthly';
+      case 'weekly':
+        return 'Weekly';
+      case 'yearly':
+        return 'Yearly';
+      case 'custom':
+        return 'Custom';
+      default:
+        return 'Unknown';
     }
-    
-    return dueDates;
+  }
+
+  /**
+   * Convert number to ordinal (1st, 2nd, 3rd, etc.)
+   */
+  private static getOrdinalNumber(num: number): string {
+    const suffixes = ['th', 'st', 'nd', 'rd'];
+    const v = num % 100;
+    return num + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+  }
+
+  /**
+   * Check if the recurring expense is currently active
+   */
+  static isCurrentlyActive(recurringExpense: RecurringExpense): boolean {
+    if (!recurringExpense.isActive) {
+      return false;
+    }
+
+    const now = new Date();
+    const startDate = new Date(recurringExpense.startDate);
+    const endDate = recurringExpense.endDate ? new Date(recurringExpense.endDate) : null;
+
+    // Check if current date is after start date
+    if (now < startDate) {
+      return false;
+    }
+
+    // Check if current date is before end date (if exists)
+    if (endDate && now > endDate) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Format the amount as currency
+   */
+  static formatAmount(recurringExpense: RecurringExpense, currency = 'USD', locale = 'en-US'): string {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: currency,
+    }).format(recurringExpense.amount);
   }
 }
 

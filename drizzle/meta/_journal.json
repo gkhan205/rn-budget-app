@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1766553059268,
+      "tag": "0000_romantic_mordo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1766553505933,
+      "tag": "0001_wealthy_ares",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1766556575907,
+      "tag": "0002_bizarre_silver_centurion",
+      "breakpoints": true
+    }
+  ]
+}

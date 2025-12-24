@@ -1,15 +1,19 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { NewBudget } from '@/db/schema/budgets';
+import { BudgetService } from '@/db/services/budgetService';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 interface FormData {
@@ -39,6 +43,10 @@ const AddBudgetScreen: React.FC = () => {
     linkedAccounts: 'All Accounts',
   });
 
+  // Loading and error states
+  const [isLoading, setIsLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+
   const colors = {
     background: '#1A1B1F',
     cardBackground: '#2A2D32',
@@ -47,6 +55,7 @@ const AddBudgetScreen: React.FC = () => {
     inputBackground: '#3A3D42',
     primaryBlue: '#4A9EFF',
     border: '#404348',
+    error: '#E74C3C',
   };
 
   const periodOptions = ['Monthly', 'Weekly', 'Custom Range'] as const;
@@ -55,14 +64,134 @@ const AddBudgetScreen: React.FC = () => {
     router.back();
   };
 
-  const handleCreateBudget = () => {
-    // TODO: Implement budget creation logic
-    console.log('Creating budget:', formData);
-    router.back();
+  // Validation functions
+  const validateForm = (): boolean => {
+    const errors: {[key: string]: string} = {};
+
+    // Validate budget name
+    if (!formData.budgetName.trim()) {
+      errors.budgetName = 'Budget name is required';
+    } else if (formData.budgetName.trim().length < 2) {
+      errors.budgetName = 'Budget name must be at least 2 characters';
+    } else if (formData.budgetName.trim().length > 50) {
+      errors.budgetName = 'Budget name must be less than 50 characters';
+    }
+
+    // Validate limit amount
+    const limitAmountStr = formData.limitAmount.replace(/[^0-9.]/g, ''); // Remove non-numeric chars except decimal
+    const limitAmount = parseFloat(limitAmountStr);
+    
+    if (limitAmountStr && isNaN(limitAmount)) {
+      errors.limitAmount = 'Please enter a valid amount';
+    } else if (limitAmount < 0) {
+      errors.limitAmount = 'Amount cannot be negative';
+    } else if (limitAmount > 999999999) {
+      errors.limitAmount = 'Amount is too large';
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Transform form data to match database schema
+  const transformFormData = (): NewBudget => {
+    // Clean and parse the limit amount
+    const limitAmountStr = formData.limitAmount.replace(/[^0-9.]/g, '');
+    const limitAmount = limitAmountStr ? parseFloat(limitAmountStr) : 0;
+    
+    const startDate = new Date();
+    
+    // Map period to schema enum
+    const periodTypeMap = {
+      'Monthly': 'monthly' as const,
+      'Weekly': 'weekly' as const,
+      'Custom Range': 'custom' as const,
+    };
+
+    // Calculate end date based on period (if recurring budget is enabled)
+    let endDate: Date | undefined;
+    if (formData.isRecurring) {
+      if (formData.period === 'Monthly') {
+        endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + 1);
+      } else if (formData.period === 'Weekly') {
+        endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 7);
+      }
+      // For 'Custom Range', endDate would be set based on user selection (not implemented yet)
+    }
+
+    return {
+      name: formData.budgetName.trim(),
+      icon: formData.icon,
+      color: formData.color,
+      limitAmount: limitAmount > 0 ? limitAmount : null, // null for tracking-only budgets
+      periodType: periodTypeMap[formData.period],
+      startDate,
+      endDate: endDate || null,
+      isArchived: false,
+    };
+  };
+
+  const handleCreateBudget = async () => {
+    // Validate form
+    if (!validateForm()) {
+      // Focus on first error field
+      if (validationErrors.budgetName) {
+        // Could add ref to focus the input
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      // Transform form data to match schema
+      const budgetData = transformFormData();
+      
+      // Create budget using transaction
+      const newBudget = await BudgetService.create(budgetData);
+      
+      console.log('Budget created successfully:', newBudget);
+      
+      // Show success feedback and navigate back
+      Alert.alert(
+        'Success!',
+        `Budget "${newBudget.name}" created successfully.`,
+        [
+          { 
+            text: 'OK', 
+            onPress: () => router.back() 
+          }
+        ]
+      );
+      
+    } catch (error) {
+      console.error('Failed to create budget:', error);
+      
+      // Show specific error message based on error type
+      let errorMessage = 'Failed to create budget. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('UNIQUE constraint')) {
+          errorMessage = 'A budget with this name already exists.';
+        } else if (error.message.includes('NOT NULL constraint')) {
+          errorMessage = 'Please fill in all required fields.';
+        }
+      }
+      
+      Alert.alert('Error', errorMessage, [{ text: 'OK' }]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear validation errors for the field being updated
+    if (validationErrors[field]) {
+      setValidationErrors(prev => ({ ...prev, [field]: '' }));
+    }
   };
 
   const renderIconSelector = () => (
@@ -79,22 +208,42 @@ const AddBudgetScreen: React.FC = () => {
   const renderBudgetNameInput = () => (
     <View style={styles.inputSection}>
       <TextInput
-        style={[styles.budgetNameInput, { color: colors.text }]}
+        style={[
+          styles.budgetNameInput, 
+          { 
+            color: colors.text,
+            borderBottomColor: validationErrors.budgetName ? colors.error : 'transparent',
+            borderBottomWidth: validationErrors.budgetName ? 1 : 0,
+          }
+        ]}
         placeholder="Budget Name (e.g. Groceries)"
         placeholderTextColor={colors.subText}
         value={formData.budgetName}
         onChangeText={(text) => updateFormData('budgetName', text)}
       />
-      <Text style={[styles.helperText, { color: colors.subText }]}>
-        Tap above to customize icon
-      </Text>
+      {validationErrors.budgetName ? (
+        <Text style={[styles.errorText, { color: colors.error }]}>
+          {validationErrors.budgetName}
+        </Text>
+      ) : (
+        <Text style={[styles.helperText, { color: colors.subText }]}>
+          Tap above to customize icon
+        </Text>
+      )}
     </View>
   );
 
   const renderLimitAmount = () => (
     <View style={styles.section}>
       <Text style={[styles.sectionLabel, { color: colors.subText }]}>LIMIT AMOUNT</Text>
-      <View style={[styles.amountInput, { backgroundColor: colors.inputBackground }]}>
+      <View style={[
+        styles.amountInput, 
+        { 
+          backgroundColor: colors.inputBackground,
+          borderBottomColor: validationErrors.limitAmount ? colors.error : 'transparent',
+          borderBottomWidth: validationErrors.limitAmount ? 1 : 0,
+        }
+      ]}>
         <Text style={[styles.currencySymbol, { color: colors.subText }]}>$</Text>
         <TextInput
           style={[styles.amountValue, { color: colors.text }]}
@@ -105,6 +254,14 @@ const AddBudgetScreen: React.FC = () => {
           placeholderTextColor={colors.subText}
         />
       </View>
+      {validationErrors.limitAmount && (
+        <Text style={[styles.errorText, { color: colors.error }]}>
+          {validationErrors.limitAmount}
+        </Text>
+      )}
+      <Text style={[styles.helperText, { color: colors.subText }]}>
+        Set to $0 for tracking-only budget
+      </Text>
     </View>
   );
 
@@ -272,10 +429,24 @@ const AddBudgetScreen: React.FC = () => {
 
       {/* Create Button */}
       <TouchableOpacity
-        style={[styles.createButton, { backgroundColor: colors.primaryBlue }]}
+        style={[
+          styles.createButton, 
+          { 
+            backgroundColor: isLoading ? colors.border : colors.primaryBlue,
+            opacity: isLoading ? 0.7 : 1,
+          }
+        ]}
         onPress={handleCreateBudget}
+        disabled={isLoading}
       >
-        <Text style={styles.createButtonText}>Create Budget</Text>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Text style={[styles.createButtonText, { marginLeft: 8 }]}>Creating...</Text>
+          </View>
+        ) : (
+          <Text style={styles.createButtonText}>Create Budget</Text>
+        )}
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -466,6 +637,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Validation and loading styles
+  errorText: {
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

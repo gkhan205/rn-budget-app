@@ -1,18 +1,25 @@
+import { DatabaseBackupModal } from '@/components/DatabaseBackupModal';
+import { ExpenseExportModal } from '@/components/ExpenseExportModal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { Budget } from '@/db/schema/budgets';
+import { BudgetService } from '@/db/services/budgetService';
+import { ExpenseService } from '@/db/services/expenseService';
+import { RecurringExpenseService } from '@/db/services/recurringExpenseService';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { calculateBudgetMetrics } from '@/utils/budgetCalculations';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-    FlatList,
-    SafeAreaView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-// import { useBudgetStore } from '@/state/budgetStore';
-// import { useExpenseStore } from '@/state/expenseStore';
 
 interface BudgetItem {
   id: string;
@@ -21,63 +28,36 @@ interface BudgetItem {
   iconColor: string;
   period: string;
   spent: number;
-  limit: number;
-  percentage: number;
+  limit: number | null;
+  percentage: number | null;
   progressColor: string;
+  recurringCount: number;
 }
 
-// Sample data matching the design exactly
-const sampleBudgets: BudgetItem[] = [
-  {
-    id: '1',
-    name: 'Groceries',
-    icon: 'cart.fill',
-    iconColor: '#4A9EFF',
-    period: 'Monthly • 3 recurring',
-    spent: 325,
-    limit: 500,
-    percentage: 65,
-    progressColor: '#4A9EFF',
-  },
-  {
-    id: '2',
-    name: 'Transport',
-    icon: 'bus.fill',
-    iconColor: '#FF8A4A',
-    period: 'Weekly • 1 recurring',
-    spent: 135,
-    limit: 150,
-    percentage: 90,
-    progressColor: '#FF8A4A',
-  },
-  {
-    id: '3',
-    name: 'Entertainment',
-    icon: 'star.fill',
-    iconColor: '#9B59B6',
-    period: 'Monthly',
-    spent: 40,
-    limit: 200,
-    percentage: 20,
-    progressColor: '#4A9EFF',
-  },
-  {
-    id: '4',
-    name: 'Housing',
-    icon: 'house.fill',
-    iconColor: '#E74C3C',
-    period: 'Monthly • 1 recurring',
-    spent: 1550,
-    limit: 1500,
-    percentage: 103,
-    progressColor: '#E74C3C',
-  },
-];
+interface BudgetSummary {
+  totalPlanned: number;
+  totalSpent: number;
+  remaining: number;
+  expectedSavings: number;
+}
 
 const BudgetsScreen: React.FC = () => {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const isDark = colorScheme === 'dark';
+  
+  // State management
+  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
+  const [budgetSummary, setBudgetSummary] = useState<BudgetSummary>({
+    totalPlanned: 0,
+    totalSpent: 0,
+    remaining: 0,
+    expectedSavings: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isExportModalVisible, setIsExportModalVisible] = useState(false);
+  const [isBackupModalVisible, setIsBackupModalVisible] = useState(false);
 
   const colors = {
     background: isDark ? '#1A1B1F' : '#F5F5F5',
@@ -92,20 +72,175 @@ const BudgetsScreen: React.FC = () => {
     green: '#2ECC71',
   };
 
-  // Calculate summary data to match the design
-  const totalPlanned = 4500; // From design
-  const totalSpent = 3250; // From design  
-  const remaining = 1250; // From design
-  const expectedSavings = 1250; // From design
+  // Helper function to map drizzle expense to calculation model
+  const mapExpenseForCalculation = (expense: any) => ({
+    id: expense.id,
+    budgetId: expense.budgetId,
+    amount: expense.amount,
+    categoryId: expense.categoryId,
+    accountId: expense.accountId,
+    date: expense.date,
+    note: expense.notes, // Map 'notes' to 'note'
+    isGeneratedFromRecurring: expense.isRecurring || false,
+    recurringId: expense.recurringExpenseId,
+  });
+
+  // Helper function to map drizzle recurring expense to calculation model
+  const mapRecurringExpenseForCalculation = (recurringExpense: any) => ({
+    id: recurringExpense.id,
+    budgetId: recurringExpense.budgetId,
+    name: recurringExpense.name,
+    amount: recurringExpense.amount,
+    frequency: recurringExpense.frequency,
+    dueDay: null, // Not used in calculations but required by interface
+    startDate: recurringExpense.startDate,
+    endDate: recurringExpense.endDate,
+    accountId: recurringExpense.accountId,
+    autoAdd: recurringExpense.autoAdd || false,
+    isActive: recurringExpense.isActive,
+  });
+  const getBudgetIconAndColor = (budget: Budget): { icon: string; iconColor: string } => {
+    const name = budget.name.toLowerCase();
+    if (name.includes('groceries') || name.includes('food')) {
+      return { icon: 'cart.fill', iconColor: '#4A9EFF' };
+    } else if (name.includes('transport') || name.includes('travel') || name.includes('car')) {
+      return { icon: 'bus.fill', iconColor: '#FF8A4A' };
+    } else if (name.includes('entertainment') || name.includes('fun') || name.includes('leisure')) {
+      return { icon: 'star.fill', iconColor: '#9B59B6' };
+    } else if (name.includes('housing') || name.includes('rent') || name.includes('mortgage')) {
+      return { icon: 'house.fill', iconColor: '#E74C3C' };
+    } else {
+      return { icon: 'creditcard.fill', iconColor: '#4A9EFF' };
+    }
+  };
+
+  // Helper function to get progress color based on percentage
+  const getProgressColor = (percentage: number | null): string => {
+    if (!percentage) return '#4A9EFF';
+    if (percentage > 100) return '#E74C3C'; // Red for over budget
+    if (percentage > 80) return '#FF8A4A'; // Orange for warning
+    return '#4A9EFF'; // Blue for normal
+  };
+
+  // Helper function to format budget period
+  const formatBudgetPeriod = (budget: Budget, recurringCount: number): string => {
+    const periodType = budget.periodType || 'monthly';
+    let period = periodType.charAt(0).toUpperCase() + periodType.slice(1);
+    
+    if (recurringCount > 0) {
+      period += ` • ${recurringCount} recurring`;
+    }
+    
+    return period;
+  };
+
+  // Load budget data from database
+  const loadBudgetData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Get active budgets
+      const budgets = await BudgetService.getActive();
+      
+      if (budgets.length === 0) {
+        setBudgetItems([]);
+        setBudgetSummary({
+          totalPlanned: 0,
+          totalSpent: 0,
+          remaining: 0,
+          expectedSavings: 0,
+        });
+        return;
+      }
+
+      // Calculate metrics for each budget
+      const budgetItemsPromises = budgets.map(async (budget) => {
+        // Get current budget period
+        const period = BudgetService.getCurrentPeriod(budget);
+        
+        // Get expenses and recurring expenses for this budget
+        const [expenses, recurringExpenses] = await Promise.all([
+          period.end 
+            ? ExpenseService.getByBudgetAndDateRange(budget.id, period.start, period.end)
+            : ExpenseService.getByBudgetId(budget.id),
+          RecurringExpenseService.getByBudgetId(budget.id)
+        ]);
+
+        // Calculate budget metrics (cast budget to handle date type differences)
+        const budgetForCalculation = {
+          ...budget,
+          createdAt: budget.createdAt || new Date(),
+          updatedAt: budget.updatedAt || new Date(),
+        } as any; // Temporary cast to handle type differences
+        
+        // Map data to expected calculation format
+        const mappedExpenses = expenses.map(mapExpenseForCalculation);
+        const mappedRecurringExpenses = recurringExpenses.map(mapRecurringExpenseForCalculation);
+        
+        const metrics = calculateBudgetMetrics(budgetForCalculation, mappedExpenses, mappedRecurringExpenses);
+        const { icon, iconColor } = getBudgetIconAndColor(budget);
+        
+        // Count active recurring expenses
+        const activeRecurringCount = recurringExpenses.filter(re => re.isActive).length;
+        
+        return {
+          id: budget.id,
+          name: budget.name,
+          icon,
+          iconColor,
+          period: formatBudgetPeriod(budget, activeRecurringCount),
+          spent: metrics.totalSpent,
+          limit: budget.limitAmount,
+          percentage: metrics.progressPercentage,
+          progressColor: getProgressColor(metrics.progressPercentage),
+          recurringCount: activeRecurringCount,
+        };
+      });
+
+      const budgetItemsData = await Promise.all(budgetItemsPromises);
+      setBudgetItems(budgetItemsData);
+
+      // Calculate summary totals
+      const totalPlanned = budgetItemsData.reduce((sum, item) => sum + (item.limit || 0), 0);
+      const totalSpent = budgetItemsData.reduce((sum, item) => sum + item.spent, 0);
+      const remaining = totalPlanned - totalSpent;
+      const expectedSavings = Math.max(0, remaining); // Simple calculation
+
+      setBudgetSummary({
+        totalPlanned,
+        totalSpent,
+        remaining,
+        expectedSavings,
+      });
+
+    } catch (err) {
+      console.error('Failed to load budget data:', err);
+      setError('Failed to load budgets. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Load data on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      loadBudgetData();
+    }, [loadBudgetData])
+  );
 
   const handleAddBudget = () => {
     router.push('/add-budget');
   };
 
+  const handleBudgetPress = (budgetId: string) => {
+    router.push(`/budget-detail?id=${budgetId}` as any);
+  };
+
   const renderBudgetCard = ({ item }: { item: BudgetItem }) => (
     <TouchableOpacity 
       style={[styles.budgetCard, { backgroundColor: colors.cardBackground }]}
-      onPress={() => router.push('/budget-detail')}
+      onPress={() => handleBudgetPress(item.id)}
     >
       <View style={styles.budgetHeader}>
         <View style={styles.budgetInfo}>
@@ -118,8 +253,16 @@ const BudgetsScreen: React.FC = () => {
           </View>
         </View>
         <View style={styles.budgetAmount}>
-          <Text style={[styles.spentAmount, { color: colors.text }]}>${item.spent}</Text>
-          <Text style={[styles.limitAmount, { color: colors.subText }]}>of ${item.limit} limit</Text>
+          <Text style={[styles.spentAmount, { color: colors.text }]}>${item.spent.toFixed(2)}</Text>
+          {item.limit ? (
+            <Text style={[styles.limitAmount, { color: colors.subText }]}>
+              of ${item.limit.toFixed(2)} limit
+            </Text>
+          ) : (
+            <Text style={[styles.limitAmount, { color: colors.subText }]}>
+              No limit set
+            </Text>
+          )}
         </View>
       </View>
       <View style={styles.progressContainer}>
@@ -129,14 +272,61 @@ const BudgetsScreen: React.FC = () => {
               styles.progressFill,
               {
                 backgroundColor: item.progressColor,
-                width: `${Math.min(item.percentage, 100)}%`,
+                width: item.percentage ? `${Math.min(item.percentage, 100)}%` : '0%',
               },
             ]}
           />
         </View>
-        <Text style={[styles.percentage, { color: colors.subText }]}>{item.percentage}%</Text>
+        <Text style={[styles.percentage, { color: colors.subText }]}>
+          {item.percentage ? `${item.percentage.toFixed(0)}%` : '-%'}
+        </Text>
       </View>
     </TouchableOpacity>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <View style={[styles.emptyIconContainer, { backgroundColor: colors.primaryBlue + '20' }]}>
+        <IconSymbol name="plus.circle.fill" size={48} color={colors.primaryBlue} />
+      </View>
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>No Budgets Yet</Text>
+      <Text style={[styles.emptySubtitle, { color: colors.subText }]}>
+        Create your first budget to start tracking your expenses
+      </Text>
+      <TouchableOpacity 
+        style={[styles.emptyButton, { backgroundColor: colors.primaryBlue }]}
+        onPress={handleAddBudget}
+      >
+        <Text style={styles.emptyButtonText}>Create Budget</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderLoadingState = () => (
+    <View style={styles.loadingState}>
+      <ActivityIndicator size="large" color={colors.primaryBlue} />
+      <Text style={[styles.loadingText, { color: colors.subText }]}>
+        Loading budgets...
+      </Text>
+    </View>
+  );
+
+  const renderErrorState = () => (
+    <View style={styles.errorState}>
+      <View style={[styles.errorIconContainer, { backgroundColor: colors.red + '20' }]}>
+        <IconSymbol name="exclamationmark.triangle.fill" size={48} color={colors.red} />
+      </View>
+      <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load Budgets</Text>
+      <Text style={[styles.errorSubtitle, { color: colors.subText }]}>
+        {error}
+      </Text>
+      <TouchableOpacity 
+        style={[styles.retryButton, { backgroundColor: colors.primaryBlue }]}
+        onPress={loadBudgetData}
+      >
+        <Text style={styles.retryButtonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
   );
 
   const renderHeader = () => (
@@ -149,15 +339,31 @@ const BudgetsScreen: React.FC = () => {
             <IconSymbol name="chevron.down" size={12} color="#9BA1A6" />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.addButton} onPress={handleAddBudget}>
-          <IconSymbol name="plus" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={styles.backupButton} 
+            onPress={() => setIsBackupModalVisible(true)}
+          >
+            <IconSymbol name="server.rack" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.exportButton} 
+            onPress={() => setIsExportModalVisible(true)}
+          >
+            <IconSymbol name="square.and.arrow.up" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addButton} onPress={handleAddBudget}>
+            <IconSymbol name="plus" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.summaryContainer, { backgroundColor: colors.headerBackground }]}>
         <View style={styles.expectedSavingsContainer}>
           <Text style={styles.expectedSavingsLabel}>EXPECTED SAVINGS</Text>
-          <Text style={styles.expectedSavingsAmount}>${expectedSavings.toLocaleString()}.00</Text>
+          <Text style={styles.expectedSavingsAmount}>
+            ${budgetSummary.expectedSavings.toLocaleString()}.00
+          </Text>
           <Text style={styles.savingsChange}>📈 +12% vs last month</Text>
         </View>
 
@@ -165,19 +371,19 @@ const BudgetsScreen: React.FC = () => {
           <View style={[styles.summaryCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
             <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>Planned</Text>
             <Text style={[styles.summaryAmount, { color: '#FFFFFF' }]}>
-              ${totalPlanned.toLocaleString()}
+              ${budgetSummary.totalPlanned.toLocaleString()}
             </Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
             <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>Spent</Text>
             <Text style={[styles.summaryAmount, { color: '#FFFFFF' }]}>
-              ${totalSpent.toLocaleString()}
+              ${budgetSummary.totalSpent.toLocaleString()}
             </Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
             <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>Left</Text>
             <Text style={[styles.summaryAmount, { color: colors.primaryBlue }]}>
-              ${remaining.toLocaleString()}
+              ${budgetSummary.remaining.toLocaleString()}
             </Text>
           </View>
         </View>
@@ -187,20 +393,49 @@ const BudgetsScreen: React.FC = () => {
     </View>
   );
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+  // Render content based on current state
+  const renderContent = () => {
+    if (isLoading) {
+      return renderLoadingState();
+    }
+    
+    if (error) {
+      return renderErrorState();
+    }
+    
+    if (budgetItems.length === 0) {
+      return renderEmptyState();
+    }
+    
+    return (
       <FlatList
-        data={sampleBudgets}
+        data={budgetItems}
         renderItem={renderBudgetCard}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       />
+    );
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      {renderContent()}
       <TouchableOpacity style={styles.fab} onPress={handleAddBudget}>
         <IconSymbol name="plus" size={20} color="#FFFFFF" />
       </TouchableOpacity>
+      
+      <ExpenseExportModal
+        visible={isExportModalVisible}
+        onClose={() => setIsExportModalVisible(false)}
+      />
+      
+      <DatabaseBackupModal
+        visible={isBackupModalVisible}
+        onClose={() => setIsBackupModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -245,6 +480,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#4A9EFF',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 8,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exportButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#4A9EFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  backupButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#9B59B6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   summaryContainer: {
     paddingHorizontal: 20,
@@ -394,6 +652,93 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
+  },
+  // Empty state styles
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingTop: 100,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 22,
+  },
+  emptyButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Loading state styles
+  loadingState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
+  },
+  // Error state styles
+  errorState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingTop: 100,
+  },
+  errorIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorSubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 6,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

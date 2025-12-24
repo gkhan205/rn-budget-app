@@ -1,16 +1,25 @@
 import MainLayout from '@/components/MainLayout';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import type { Account } from '@/db/schema/accounts';
+import type { Budget } from '@/db/schema/budgets';
+import { AccountService } from '@/db/services/accountService';
+import { BudgetService } from '@/db/services/budgetService';
+import { ExpenseService } from '@/db/services/expenseService';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from 'react-native';
 
 interface Category {
@@ -25,16 +34,26 @@ const AddTransactionScreen: React.FC = () => {
   
   // Form state
   const [transactionType, setTransactionType] = useState<'Expense' | 'Income' | 'Transfer'>('Expense');
-  const [amount, setAmount] = useState('48.50');
+  const [amount, setAmount] = useState('0');
+  const [description, setDescription] = useState('');
+  const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category>({
     id: '1',
     name: 'Food',
     icon: '🍔',
     color: '#4A9EFF'
   });
-  const [selectedDate] = useState('Today');
-  const [notes] = useState('');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [notes, setNotes] = useState('');
   const [isKeypadVisible, setIsKeypadVisible] = useState(false);
+
+  // Data state
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const colors = {
     background: '#1A1B1F',
@@ -60,20 +79,92 @@ const AddTransactionScreen: React.FC = () => {
     { id: '8', name: 'More', icon: '', color: '#666666' },
   ];
 
+  // Load budgets and accounts data
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const [budgetsData, accountsData] = await Promise.all([
+        BudgetService.getActive(),
+        AccountService.getActive(),
+      ]);
+
+      setBudgets(budgetsData);
+      setAccounts(accountsData);
+
+      // Auto-select first budget if available (required)
+      if (budgetsData.length > 0 && !selectedBudget) {
+        setSelectedBudget(budgetsData[0]);
+      }
+
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      setError('Failed to load budgets and accounts');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedBudget]);
+
+  // Load data on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
   const handleClose = () => {
     router.back();
   };
 
-  const handleSave = () => {
-    // TODO: Save transaction logic
-    console.log('Save transaction:', {
-      type: transactionType,
-      amount: parseFloat(amount),
-      category: selectedCategory,
-      date: selectedDate,
-      notes
-    });
-    router.back();
+  const handleSave = async () => {
+    // Validation
+    if (!selectedBudget) {
+      Alert.alert('Error', 'Please select a budget');
+      return;
+    }
+
+    const amountValue = parseFloat(amount);
+    if (isNaN(amountValue) || amountValue <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    if (!description.trim()) {
+      Alert.alert('Error', 'Please enter a description');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // Create expense using drizzle service
+      const expenseData = {
+        budgetId: selectedBudget.id,
+        accountId: selectedAccount?.id || null,
+        categoryId: null, // Using legacy category field for now
+        amount: amountValue,
+        description: description.trim(),
+        date: selectedDate,
+        category: selectedCategory.name,
+        isRecurring: false,
+        recurringExpenseId: null,
+        tags: null,
+        notes: notes.trim() || null,
+      };
+
+      await ExpenseService.create(expenseData);
+      
+      Alert.alert('Success', 'Expense added successfully', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
+
+    } catch (err) {
+      console.error('Failed to save expense:', err);
+      Alert.alert('Error', 'Failed to save expense. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCategorySelect = (category: Category) => {
@@ -81,8 +172,16 @@ const AddTransactionScreen: React.FC = () => {
   };
 
   const handleDateSelect = () => {
-    // TODO: Show date picker
-    console.log('Show date picker');
+    // For simplicity, we'll cycle through today, yesterday, and custom
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    
+    if (selectedDate.toDateString() === today.toDateString()) {
+      setSelectedDate(yesterday);
+    } else {
+      setSelectedDate(today);
+    }
   };
 
   const renderHeader = () => (
@@ -93,8 +192,12 @@ const AddTransactionScreen: React.FC = () => {
       
       <Text style={[styles.headerTitle, { color: colors.text }]}>Add Transaction</Text>
       
-      <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-        <Text style={[styles.saveText, { color: colors.primaryBlue }]}>Save</Text>
+      <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving}>
+        {isSaving ? (
+          <ActivityIndicator size="small" color={colors.primaryBlue} />
+        ) : (
+          <Text style={[styles.saveText, { color: colors.primaryBlue }]}>Save</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -135,6 +238,81 @@ const AddTransactionScreen: React.FC = () => {
         {isKeypadVisible ? 'USD - US Dollar' : 'Tap to edit • USD - US Dollar'}
       </Text>
     </TouchableOpacity>
+  );
+
+  const renderBudgetSelector = () => (
+    <TouchableOpacity 
+      style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+      onPress={() => {
+        // Simple budget cycling for now - in a real app this would be a modal
+        if (budgets.length > 0) {
+          const currentIndex = selectedBudget ? budgets.findIndex(b => b.id === selectedBudget.id) : -1;
+          const nextIndex = (currentIndex + 1) % budgets.length;
+          setSelectedBudget(budgets[nextIndex]);
+        }
+      }}
+    >
+      <View style={styles.inputRow}>
+        <IconSymbol name="folder.fill" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <View style={styles.inputContent}>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Budget *</Text>
+          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>Which budget is this for?</Text>
+        </View>
+        <View style={styles.inputValueContainer}>
+          <Text style={[styles.inputValue, { color: selectedBudget ? colors.text : colors.subText }]}>
+            {selectedBudget ? selectedBudget.name : 'Select Budget'}
+          </Text>
+          <IconSymbol name="chevron.right" size={16} color={colors.subText} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderAccountSelector = () => (
+    <TouchableOpacity 
+      style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+      onPress={() => {
+        // Simple account cycling for now - in a real app this would be a modal
+        if (accounts.length > 0) {
+          const currentIndex = selectedAccount ? accounts.findIndex(a => a.id === selectedAccount.id) : -1;
+          const nextIndex = currentIndex >= accounts.length - 1 ? -1 : currentIndex + 1;
+          setSelectedAccount(nextIndex === -1 ? null : accounts[nextIndex]);
+        }
+      }}
+    >
+      <View style={styles.inputRow}>
+        <IconSymbol name="creditcard.fill" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <View style={styles.inputContent}>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Account</Text>
+          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>Optional - which account to track?</Text>
+        </View>
+        <View style={styles.inputValueContainer}>
+          <Text style={[styles.inputValue, { color: selectedAccount ? colors.text : colors.subText }]}>
+            {selectedAccount ? selectedAccount.name : 'No Account'}
+          </Text>
+          <IconSymbol name="chevron.right" size={16} color={colors.subText} />
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderDescriptionInput = () => (
+    <View style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+      <View style={styles.inputRow}>
+        <IconSymbol name="text.alignleft" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <View style={[styles.inputContent, { flex: 1 }]}>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Description *</Text>
+          <TextInput
+            style={[styles.descriptionInput, { color: colors.text }]}
+            placeholder="What did you spend on?"
+            placeholderTextColor={colors.placeholder}
+            value={description}
+            onChangeText={setDescription}
+            maxLength={100}
+          />
+        </View>
+      </View>
+    </View>
   );
 
   const renderCategorySelector = () => (
@@ -193,11 +371,38 @@ const AddTransactionScreen: React.FC = () => {
           <Text style={[styles.inputSubtitle, { color: colors.subText }]}>When did this happen?</Text>
         </View>
         <View style={styles.inputValueContainer}>
-          <Text style={[styles.inputValue, { color: colors.text }]}>{selectedDate}</Text>
+          <Text style={[styles.inputValue, { color: colors.text }]}>
+            {selectedDate.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+            })}
+          </Text>
           <IconSymbol name="chevron.right" size={16} color={colors.subText} />
         </View>
       </View>
     </TouchableOpacity>
+  );
+
+  const renderNotesInput = () => (
+    <View style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+      <View style={styles.inputRow}>
+        <IconSymbol name="note.text" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <View style={[styles.inputContent, { flex: 1 }]}>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Notes</Text>
+          <TextInput
+            style={[styles.descriptionInput, { color: colors.text }]}
+            placeholder="Add any additional notes..."
+            placeholderTextColor={colors.placeholder}
+            value={notes}
+            onChangeText={setNotes}
+            maxLength={200}
+            multiline
+            numberOfLines={2}
+          />
+        </View>
+      </View>
+    </View>
   );
 
   const renderKeypad = () => (
@@ -263,25 +468,48 @@ const AddTransactionScreen: React.FC = () => {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {renderHeader()}
         
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.keyboardAvoid}
-        >
-          <TouchableWithoutFeedback onPress={() => isKeypadVisible && setIsKeypadVisible(false)}>
-            <ScrollView 
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primaryBlue} />
+            <Text style={[styles.loadingText, { color: colors.subText }]}>
+              Loading budgets and accounts...
+            </Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
+            <TouchableOpacity 
+              style={[styles.retryButton, { backgroundColor: colors.primaryBlue }]}
+              onPress={loadData}
             >
-              {renderTransactionTypeSelector()}
-              {renderAmountInput()}
-              {renderCategorySelector()}
-              {renderDateSelector()}
-            </ScrollView>
-          </TouchableWithoutFeedback>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardAvoid}
+          >
+            <TouchableWithoutFeedback onPress={() => isKeypadVisible && setIsKeypadVisible(false)}>
+              <ScrollView 
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {renderTransactionTypeSelector()}
+                {renderAmountInput()}
+                {renderDescriptionInput()}
+                {renderBudgetSelector()}
+                {renderAccountSelector()}
+                {renderCategorySelector()}
+                {renderDateSelector()}
+                {renderNotesInput()}
+              </ScrollView>
+            </TouchableWithoutFeedback>
 
-          {isKeypadVisible && renderKeypad()}
-        </KeyboardAvoidingView>
+            {isKeypadVisible && renderKeypad()}
+          </KeyboardAvoidingView>
+        )}
       </View>
     </MainLayout>
   );
@@ -435,6 +663,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  descriptionInput: {
+    fontSize: 16,
+    marginTop: 4,
+    paddingVertical: 4,
+  },
   keypadContainer: {
     backgroundColor: '#2A2D32',
     paddingTop: 20,
@@ -481,6 +714,38 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    fontSize: 16,
+    marginTop: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingTop: 100,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

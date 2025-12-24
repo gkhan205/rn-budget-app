@@ -1,7 +1,16 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import type { Budget } from '@/db/schema/budgets';
+import type { Expense } from '@/db/schema/expenses';
+import type { RecurringExpense } from '@/db/schema/recurringExpenses';
+import { BudgetService } from '@/db/services/budgetService';
+import { ExpenseService } from '@/db/services/expenseService';
+import { RecurringExpenseService } from '@/db/services/recurringExpenseService';
+import { calculateBudgetMetrics } from '@/utils/budgetCalculations';
+import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import {
+    ActivityIndicator,
     SafeAreaView,
     ScrollView,
     StatusBar,
@@ -26,48 +35,178 @@ interface CategorySpend {
   color: string;
 }
 
+interface BudgetDetailData {
+  budget: Budget;
+  expenses: Expense[];
+  recurringExpenses: RecurringExpense[];
+  totalSpent: number;
+  totalPlanned: number;
+  remaining: number | null;
+  percentage: number | null;
+  todaysSpend: number;
+  weekSpend: number;
+}
+
 const BudgetDetailScreen: React.FC = () => {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const budgetId = params.id as string;
+
+  // State management
   const [activeTab, setActiveTab] = useState<'Overview' | 'Recurring' | 'History'>('Overview');
+  const [budgetDetail, setBudgetDetail] = useState<BudgetDetailData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sample data - in real app this would come from props/params
-  const budgetData = {
-    name: 'Groceries',
-    icon: 'cart.fill',
-    period: 'Monthly Budget',
-    limit: 600.00,
-    spent: 450.00,
-    remaining: 150.00,
-    percentage: 75,
-    resetsIn: 12,
-    todaysSpend: 45.00,
-    weekSpend: 120.00,
-  };
+  // Helper function to map expenses for UI display
+  const mapExpenseForCalculation = (expense: Expense) => ({
+    id: expense.id,
+    budgetId: expense.budgetId,
+    amount: expense.amount,
+    categoryId: expense.categoryId || 'default',
+    accountId: expense.accountId || 'default',
+    date: expense.date,
+    note: expense.notes,
+    isGeneratedFromRecurring: expense.isRecurring || false,
+    recurringId: expense.recurringExpenseId,
+  });
 
-  const upcomingRecurring: RecurringItem[] = [
-    {
-      id: '1',
-      name: 'Whole Foods Sub',
-      icon: 'leaf.fill',
-      iconColor: '#FF8A4A',
-      amount: 12.99,
-      dueText: 'Due Tomorrow',
-    },
-    {
-      id: '2',
-      name: 'Water Delivery',
-      icon: 'drop.fill',
-      iconColor: '#4A9EFF',
-      amount: 25.00,
-      dueText: 'Due in 5 days',
-    },
-  ];
+  // Helper function to map recurring expenses for UI display
+  const mapRecurringExpenseForCalculation = (recurringExpense: RecurringExpense) => ({
+    id: recurringExpense.id,
+    budgetId: recurringExpense.budgetId,
+    name: recurringExpense.name,
+    amount: recurringExpense.amount,
+    frequency: recurringExpense.frequency === 'daily' ? 'custom' as const : recurringExpense.frequency,
+    dueDay: null,
+    startDate: recurringExpense.startDate,
+    endDate: recurringExpense.endDate,
+    accountId: recurringExpense.accountId || 'default',
+    autoAdd: recurringExpense.autoAdd || false,
+    isActive: recurringExpense.isActive,
+  });
 
+  // Load budget detail data
+  const loadBudgetDetail = useCallback(async () => {
+    if (!budgetId) {
+      setError('Budget ID is required');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Load budget data
+      const budget = await BudgetService.getById(budgetId);
+      if (!budget) {
+        setError('Budget not found');
+        return;
+      }
+
+      // Get current budget period
+      const period = BudgetService.getCurrentPeriod(budget);
+
+      // Load expenses and recurring expenses
+      const [expenses, recurringExpenses] = await Promise.all([
+        period.end 
+          ? ExpenseService.getByBudgetAndDateRange(budget.id, period.start, period.end)
+          : ExpenseService.getByBudgetId(budget.id),
+        RecurringExpenseService.getByBudgetId(budget.id)
+      ]);
+
+      // Calculate metrics
+      const budgetForCalculation = {
+        ...budget,
+        createdAt: budget.createdAt || new Date(),
+        updatedAt: budget.updatedAt || new Date(),
+      } as any;
+
+      const mappedExpenses = expenses.map(mapExpenseForCalculation);
+      const mappedRecurringExpenses = recurringExpenses.map(mapRecurringExpenseForCalculation);
+
+      const metrics = calculateBudgetMetrics(budgetForCalculation, mappedExpenses, mappedRecurringExpenses);
+
+      // Calculate today's and this week's spending
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay()); // Start of week (Sunday)
+
+      const todaysSpend = expenses
+        .filter(expense => {
+          const expenseDate = new Date(expense.date);
+          return expenseDate >= today && expenseDate < new Date(today.getTime() + 24 * 60 * 60 * 1000);
+        })
+        .reduce((sum, expense) => sum + expense.amount, 0);
+
+      const weekSpend = expenses
+        .filter(expense => {
+          const expenseDate = new Date(expense.date);
+          return expenseDate >= weekStart && expenseDate <= now;
+        })
+        .reduce((sum, expense) => sum + expense.amount, 0);
+
+      setBudgetDetail({
+        budget,
+        expenses,
+        recurringExpenses,
+        totalSpent: metrics.totalSpent,
+        totalPlanned: metrics.totalPlanned,
+        remaining: metrics.remainingAmount,
+        percentage: metrics.progressPercentage,
+        todaysSpend,
+        weekSpend,
+      });
+
+    } catch (err) {
+      console.error('Failed to load budget detail:', err);
+      setError('Failed to load budget details. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [budgetId]);
+
+  // Load data on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      loadBudgetDetail();
+    }, [loadBudgetDetail])
+  );
+
+  // Derived data for UI
+  const budgetData = budgetDetail ? {
+    name: budgetDetail.budget.name,
+    icon: 'cart.fill', // This could be dynamic based on budget category
+    period: `${budgetDetail.budget.periodType.charAt(0).toUpperCase() + budgetDetail.budget.periodType.slice(1)} Budget`,
+    limit: budgetDetail.budget.limitAmount,
+    spent: budgetDetail.totalSpent,
+    remaining: budgetDetail.remaining,
+    percentage: budgetDetail.percentage || 0,
+    resetsIn: 12, // Calculate based on period end date
+    todaysSpend: budgetDetail.todaysSpend,
+    weekSpend: budgetDetail.weekSpend,
+  } : null;
+
+  // Convert recurring expenses to UI format
+  const upcomingRecurring: RecurringItem[] = budgetDetail 
+    ? budgetDetail.recurringExpenses
+        .filter(re => re.isActive)
+        .slice(0, 2) // Show only first 2
+        .map(re => ({
+          id: re.id,
+          name: re.name,
+          icon: 'arrow.triangle.2.circlepath',
+          iconColor: '#4A9EFF',
+          amount: re.amount,
+          dueText: 'Due soon', // Calculate based on next due date
+        }))
+    : [];
+
+  // Sample category spending (would be calculated from expenses)
   const categorySpending: CategorySpend[] = [
-    { name: 'Produce', percentage: 45, color: '#4A9EFF' },
-    { name: 'Meat & Dairy', percentage: 25, color: '#A0D4FF' },
-    { name: 'Snacks', percentage: 15, color: '#C2E4FF' },
-    { name: 'Others', percentage: 15, color: '#E1F2FF' },
+    { name: 'General', percentage: 100, color: '#4A9EFF' },
   ];
 
   const colors = {
@@ -103,11 +242,11 @@ const BudgetDetailScreen: React.FC = () => {
       <View style={styles.headerCenter}>
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {budgetData.name}
+            {budgetData!.name}
           </Text>
-          <IconSymbol name={budgetData.icon as any} size={16} color={colors.primaryBlue} style={styles.headerIcon} />
+          <IconSymbol name={budgetData!.icon as any} size={16} color={colors.primaryBlue} style={styles.headerIcon} />
         </View>
-        <Text style={[styles.headerSubtitle, { color: colors.subText }]}>{budgetData.period}</Text>
+        <Text style={[styles.headerSubtitle, { color: colors.subText }]}>{budgetData!.period}</Text>
       </View>
       <TouchableOpacity style={styles.optionsButton}>
         <IconSymbol name="ellipsis" size={20} color={colors.text} />
@@ -121,7 +260,7 @@ const BudgetDetailScreen: React.FC = () => {
         <View>
           <Text style={[styles.summaryLabel, { color: colors.subText }]}>Total Limit</Text>
           <Text style={[styles.summaryAmount, { color: colors.text }]}>
-            ${budgetData.limit.toFixed(2)}
+            ${(budgetData!.limit || 0).toFixed(2)}
           </Text>
         </View>
         <View style={[styles.cartIcon, { backgroundColor: colors.primaryBlue + '20' }]}>
@@ -131,10 +270,10 @@ const BudgetDetailScreen: React.FC = () => {
 
       <View style={styles.usageContainer}>
         <Text style={[styles.usageText, { color: colors.primaryBlue }]}>
-          {budgetData.percentage}% Used
+          {budgetData!.percentage}% Used
         </Text>
         <Text style={[styles.spentText, { color: colors.subText }]}>
-          ${budgetData.spent.toFixed(2)} spent
+          ${budgetData!.spent.toFixed(2)} spent
         </Text>
       </View>
 
@@ -145,7 +284,7 @@ const BudgetDetailScreen: React.FC = () => {
               styles.progressFill,
               {
                 backgroundColor: colors.primaryBlue,
-                width: `${Math.min(budgetData.percentage, 100)}%`,
+                width: `${Math.min(budgetData!.percentage, 100)}%`,
               },
             ]}
           />
@@ -156,11 +295,11 @@ const BudgetDetailScreen: React.FC = () => {
         <View style={styles.remainingContainer}>
           <View style={styles.remainingIndicator} />
           <Text style={[styles.remainingText, { color: colors.green }]}>
-            ${budgetData.remaining.toFixed(2)} Remaining
+            ${(budgetData!.remaining || 0).toFixed(2)} Remaining
           </Text>
         </View>
         <Text style={[styles.resetText, { color: colors.subText }]}>
-          Resets in {budgetData.resetsIn} days
+          Resets in {budgetData!.resetsIn} days
         </Text>
       </View>
     </View>
@@ -207,7 +346,7 @@ const BudgetDetailScreen: React.FC = () => {
           </View>
           <Text style={[styles.spendingLabel, { color: colors.subText }]}>Today&apos;s Spend</Text>
           <Text style={[styles.spendingAmount, { color: colors.text }]}>
-            ${budgetData.todaysSpend.toFixed(2)}
+            ${budgetData!.todaysSpend.toFixed(2)}
           </Text>
         </View>
         <View style={[styles.spendingCard, { backgroundColor: colors.cardBackground }]}>
@@ -216,7 +355,7 @@ const BudgetDetailScreen: React.FC = () => {
           </View>
           <Text style={[styles.spendingLabel, { color: colors.subText }]}>This Week</Text>
           <Text style={[styles.spendingAmount, { color: colors.text }]}>
-            ${budgetData.weekSpend.toFixed(2)}
+            ${budgetData!.weekSpend.toFixed(2)}
           </Text>
         </View>
       </View>
@@ -328,6 +467,46 @@ const BudgetDetailScreen: React.FC = () => {
         return null;
     }
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primaryBlue} />
+        <Text style={[styles.loadingText, { color: colors.text, marginTop: 16 }]}>
+          Loading budget details...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[styles.errorText, { color: '#FF6B6B', marginBottom: 16 }]}>
+          {error}
+        </Text>
+        <TouchableOpacity 
+          style={[styles.retryButton, { backgroundColor: colors.primaryBlue }]}
+          onPress={loadBudgetDetail}
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  // Show empty state if no budget data
+  if (!budgetData) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[styles.errorText, { color: colors.subText }]}>
+          Budget not found
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -644,6 +823,25 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginHorizontal: 20,
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 

@@ -1,5 +1,5 @@
 import { Expense } from '../db/models/Expense';
-import { RecurringExpense } from '../db/models/RecurringExpense';
+import { RecurringExpense, RecurringExpenseService } from '../db/models/RecurringExpense';
 
 /**
  * Interface for creating a new expense
@@ -57,7 +57,7 @@ export function autoGenerateExpenses(
     }
 
     // Check if the recurring expense is due on the current date
-    if (!recurringExpense.isDueOnDate(currentDate)) {
+    if (!RecurringExpenseService.isDueOnDate(recurringExpense, currentDate)) {
       return;
     }
 
@@ -136,7 +136,7 @@ export function autoGenerateExpensesForDateRange(
       }
 
       // Check if the recurring expense is due on the current date
-      if (!recurringExpense.isDueOnDate(new Date(currentDate))) {
+      if (!RecurringExpenseService.isDueOnDate(recurringExpense, new Date(currentDate))) {
         return;
       }
 

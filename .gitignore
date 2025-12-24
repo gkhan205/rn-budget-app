@@ -37,8 +37,8 @@ yarn-error.*
 *.tsbuildinfo
 
 # IDE
-.vscode
-.idea
+.vscode/
+.idea/
 
 app-example
 
