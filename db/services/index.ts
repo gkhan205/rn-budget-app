@@ -3,5 +3,6 @@ export * from './appSettingsService';
 export * from './budgetService';
 export * from './categoryService';
 export * from './expenseService';
+export * from './incomeService';
 export * from './recurringExpenseService';
 

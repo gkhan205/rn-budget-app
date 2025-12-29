@@ -174,8 +174,32 @@ export class BudgetService {
       case 'noEndDate':
         return { start: startDate, end: null };
         
-      default:
+        default:
         return { start: startDate, end: null };
     }
+  }
+
+  /**
+   * Add income to a budget
+   */
+  static async addIncome(budgetId: string, incomeAmount: number): Promise<Budget | null> {
+    const db = getDrizzleDb();
+    
+    // Get current budget
+    const budget = await this.getById(budgetId);
+    if (!budget) {
+      throw new Error('Budget not found');
+    }
+    
+    // Add income to existing income
+    const [updatedBudget] = await db.update(budgets)
+      .set({
+        income: budget.income + incomeAmount,
+        updatedAt: new Date(),
+      })
+      .where(eq(budgets.id, budgetId))
+      .returning();
+      
+    return updatedBudget || null;
   }
 }

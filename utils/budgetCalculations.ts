@@ -1,6 +1,6 @@
-import { Budget } from '../db/models/Budget';
 import { Expense } from '../db/models/Expense';
 import { RecurringExpense } from '../db/models/RecurringExpense';
+import { Budget } from '../db/schema/budgets';
 
 /**
  * Utility functions for budget calculations
@@ -54,20 +54,20 @@ export function getTotalPlanned(recurringExpenses: RecurringExpense[]): number {
  * @param budget - Budget object
  * @param totalSpent - Total amount already spent
  * @param totalPlanned - Total planned amount from recurring expenses
- * @returns Remaining amount (null if budget has no limit)
+ * @returns Remaining amount (null if budget has no income)
  */
 export function getRemainingAmount(
   budget: Budget,
   totalSpent: number,
   totalPlanned: number
 ): number | null {
-  // If budget has no limit, return null
-  if (!budget.limitAmount || budget.limitAmount <= 0) {
+  // If budget has no income, return null
+  if (!budget.income || budget.income <= 0) {
     return null;
   }
 
   const totalAllocated = totalSpent + totalPlanned;
-  return budget.limitAmount - totalAllocated;
+  return budget.income - totalAllocated;
 }
 
 /**
@@ -75,20 +75,20 @@ export function getRemainingAmount(
  * @param budget - Budget object
  * @param totalSpent - Total amount already spent
  * @param totalPlanned - Total planned amount from recurring expenses
- * @returns Progress percentage (null if budget has no limit)
+ * @returns Progress percentage (null if budget has no income)
  */
 export function getProgressPercentage(
   budget: Budget,
   totalSpent: number,
   totalPlanned: number
 ): number | null {
-  // If budget has no limit, return null
-  if (!budget.limitAmount || budget.limitAmount <= 0) {
+  // If budget has no income, return null
+  if (!budget.income || budget.income <= 0) {
     return null;
   }
 
   const totalAllocated = totalSpent + totalPlanned;
-  const percentage = (totalAllocated / budget.limitAmount) * 100;
+  const percentage = (totalAllocated / budget.income) * 100;
   
   // Return percentage rounded to 2 decimal places
   return Math.round(percentage * 100) / 100;
@@ -124,20 +124,20 @@ export function calculateBudgetMetrics(
  * @param budget - Budget object
  * @param totalSpent - Total amount already spent
  * @param totalPlanned - Total planned amount from recurring expenses
- * @returns True if budget is over limit, false otherwise (always false for unlimited budgets)
+ * @returns True if budget is over income, false otherwise (always false for budgets without income)
  */
 export function isBudgetOverLimit(
   budget: Budget,
   totalSpent: number,
   totalPlanned: number
 ): boolean {
-  // If budget has no limit, it can't be over limit
-  if (!budget.limitAmount || budget.limitAmount <= 0) {
+  // If budget has no income, it can't be over limit
+  if (!budget.income || budget.income <= 0) {
     return false;
   }
 
   const totalAllocated = totalSpent + totalPlanned;
-  return totalAllocated > budget.limitAmount;
+  return totalAllocated > budget.income;
 }
 
 /**

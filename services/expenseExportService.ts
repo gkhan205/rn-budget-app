@@ -198,7 +198,7 @@ export class ExpenseExportService {
     const results = await db
       .select({
         budgetName: budgets.name,
-        budgetLimit: budgets.limitAmount,
+        budgetLimit: budgets.income,
         amount: expenses.amount,
       })
       .from(expenses)

@@ -107,7 +107,7 @@ export class OnboardingPersistenceService {
         name: budget.name,
         icon: budget.icon,
         color: budget.color,
-        limitAmount: budget.limitAmount,
+        income: budget.limitAmount || 0, // Map limitAmount to income for backward compatibility
         periodType: budget.periodType,
         startDate: budget.startDate,
         endDate: budget.endDate,
@@ -294,7 +294,7 @@ export class OnboardingPersistenceService {
       })),
       budget: onboardingState.firstBudget ? {
         name: onboardingState.firstBudget.name,
-        limit: onboardingState.firstBudget.limitAmount,
+        limit: onboardingState.firstBudget.limitAmount || 0, // Keep for backward compatibility
         period: onboardingState.firstBudget.periodType,
       } : null,
       recurringItemCount: onboardingState.recurringItems.length,

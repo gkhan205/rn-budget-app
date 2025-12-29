@@ -12,7 +12,7 @@ export interface Budget {
   name: string;
   icon: string;
   color: string;
-  limitAmount: number | null;
+  income: number; // Monthly/period income for the budget
   periodType: PeriodType;
   startDate: Date;
   endDate: Date | null;

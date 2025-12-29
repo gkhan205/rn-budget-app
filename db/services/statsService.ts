@@ -184,7 +184,7 @@ export class StatsService {
       .select({
         id: budgets.id,
         name: budgets.name,
-        plannedAmount: budgets.limitAmount
+        plannedAmount: budgets.income
       })
       .from(budgets)
       .where(sql`${budgets.isArchived} = 0`);

@@ -1,4 +1,5 @@
 import MainLayout from '@/components/MainLayout';
+import { SwipeableBudgetItem } from '@/components/budget';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Budget } from '@/db/schema/budgets';
 import { BudgetService } from '@/db/services/budgetService';
@@ -11,6 +12,7 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   SafeAreaView,
   StatusBar,
@@ -66,6 +68,7 @@ const BudgetsScreen: React.FC = () => {
     orange: '#FF8A4A',
     purple: '#9B59B6',
     red: '#E74C3C',
+    expenseRed: '#E74C3C',
     green: '#2ECC71',
   };
 
@@ -97,18 +100,10 @@ const BudgetsScreen: React.FC = () => {
     isActive: recurringExpense.isActive,
   });
   const getBudgetIconAndColor = (budget: Budget): { icon: string; iconColor: string } => {
-    const name = budget.name.toLowerCase();
-    if (name.includes('groceries') || name.includes('food')) {
-      return { icon: 'cart.fill', iconColor: '#4A9EFF' };
-    } else if (name.includes('transport') || name.includes('travel') || name.includes('car')) {
-      return { icon: 'bus.fill', iconColor: '#FF8A4A' };
-    } else if (name.includes('entertainment') || name.includes('fun') || name.includes('leisure')) {
-      return { icon: 'star.fill', iconColor: '#9B59B6' };
-    } else if (name.includes('housing') || name.includes('rent') || name.includes('mortgage')) {
-      return { icon: 'house.fill', iconColor: '#E74C3C' };
-    } else {
-      return { icon: 'creditcard.fill', iconColor: '#4A9EFF' };
-    }
+    return {
+      icon: budget.icon,
+      iconColor: budget.color,
+    };
   };
 
   // Helper function to get progress color based on percentage
@@ -188,7 +183,7 @@ const BudgetsScreen: React.FC = () => {
           iconColor,
           period: formatBudgetPeriod(budget, activeRecurringCount),
           spent: metrics.totalSpent,
-          limit: budget.limitAmount,
+          limit: budget.income,
           percentage: metrics.progressPercentage,
           progressColor: getProgressColor(metrics.progressPercentage),
           recurringCount: activeRecurringCount,
@@ -234,51 +229,56 @@ const BudgetsScreen: React.FC = () => {
     router.push(`/budget-detail?id=${budgetId}` as any);
   };
 
+  const handleEditBudget = (budget: BudgetItem) => {
+    router.push({
+      pathname: '/add-budget' as any,
+      params: {
+        editMode: 'true',
+        budgetId: budget.id,
+        name: budget.name,
+        icon: budget.icon,
+        iconColor: budget.iconColor,
+        limit: budget.limit?.toString() || '',
+      },
+    });
+  };
+
+  const handleDeleteBudget = async (budget: BudgetItem) => {
+    Alert.alert(
+      'Delete Budget',
+      `Are you sure you want to delete "${budget.name}"? This will also delete all associated expenses and cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              await BudgetService.delete(budget.id);
+              await loadBudgetData(); // Refresh the data
+            } catch (error) {
+              console.error('Failed to delete budget:', error);
+              Alert.alert('Error', 'Failed to delete budget. Please try again.');
+              setIsLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderBudgetCard = ({ item }: { item: BudgetItem }) => (
-    <TouchableOpacity 
-      style={[styles.budgetCard, { backgroundColor: colors.cardBackground }]}
+    <SwipeableBudgetItem
+      budget={item}
+      colors={colors}
       onPress={() => handleBudgetPress(item.id)}
-    >
-      <View style={styles.budgetHeader}>
-        <View style={styles.budgetInfo}>
-          <View style={[styles.iconContainer, { backgroundColor: item.iconColor + '20' }]}>
-            <IconSymbol name={item.icon as any} size={20} color={item.iconColor} />
-          </View>
-          <View style={styles.budgetDetails}>
-            <Text style={[styles.budgetName, { color: colors.text }]}>{item.name}</Text>
-            <Text style={[styles.budgetPeriod, { color: colors.subText }]}>{item.period}</Text>
-          </View>
-        </View>
-        <View style={styles.budgetAmount}>
-          <Text style={[styles.spentAmount, { color: colors.text }]}>${item.spent.toFixed(2)}</Text>
-          {item.limit ? (
-            <Text style={[styles.limitAmount, { color: colors.subText }]}>
-              of ${item.limit.toFixed(2)} limit
-            </Text>
-          ) : (
-            <Text style={[styles.limitAmount, { color: colors.subText }]}>
-              No limit set
-            </Text>
-          )}
-        </View>
-      </View>
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBar}>
-          <View
-            style={[
-              styles.progressFill,
-              {
-                backgroundColor: item.progressColor,
-                width: item.percentage ? `${Math.min(item.percentage, 100)}%` : '0%',
-              },
-            ]}
-          />
-        </View>
-        <Text style={[styles.percentage, { color: colors.subText }]}>
-          {item.percentage ? `${item.percentage.toFixed(0)}%` : '-%'}
-        </Text>
-      </View>
-    </TouchableOpacity>
+      onEdit={handleEditBudget}
+      onDelete={handleDeleteBudget}
+    />
   );
 
   const renderEmptyState = () => (
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 140, // Moved further down to accommodate the tab bar
+    bottom: 20, // Moved further down to accommodate the tab bar
     width: 56,
     height: 56,
     borderRadius: 28,

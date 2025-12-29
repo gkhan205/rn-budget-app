@@ -1,11 +1,17 @@
+import {
+  DateRangePicker,
+  IncomeModal,
+  OptionCard,
+  RecurringExpenseList,
+  RecurringExpenseModal,
+  ToggleSwitch,
+} from '@/components/budget';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import type { NewBudget } from '@/db/schema/budgets';
-import { BudgetService } from '@/db/services/budgetService';
-import { useRouter } from 'expo-router';
+import { useBudgetForm, type BudgetFormData } from '@/hooks/useBudgetForm';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -16,36 +22,38 @@ import {
   View,
 } from 'react-native';
 
-interface FormData {
-  budgetName: string;
-  icon: string;
-  color: string;
-  limitAmount: string;
-  period: 'Monthly' | 'Weekly' | 'Custom Range';
-  isRecurring: boolean;
-  income: string;
-  recurringExpenses: string[];
-  linkedAccounts: 'All Accounts' | string[];
-}
-
 const AddBudgetScreen: React.FC = () => {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  
+  // Check if we're in edit mode
+  const isEditMode = params.editMode === 'true';
+  const budgetId = params.budgetId as string;
+  
+  // Prepare initial data for edit mode
+  const initialData: Partial<BudgetFormData> | undefined = isEditMode ? {
+    budgetName: params.name as string || '',
+    icon: params.icon as string || 'creditcard.fill',
+    color: params.iconColor as string || '#4A9EFF',
+    income: params.limit as string || '0.00',
+  } : undefined;
+  
+  const {
+    formData,
+    updateFormData,
+    validationErrors,
+    isLoading,
+    addRecurringExpense,
+    removeRecurringExpense,
+    updateIncome,
+    handleDateRangeChange,
+    submitForm,
+  } = useBudgetForm(isEditMode, budgetId, initialData);
 
-  const [formData, setFormData] = useState<FormData>({
-    budgetName: '',
-    icon: 'creditcard.fill',
-    color: '#4A9EFF',
-    limitAmount: '0.00',
-    period: 'Monthly',
-    isRecurring: true,
-    income: '0.00',
-    recurringExpenses: [],
-    linkedAccounts: 'All Accounts',
-  });
-
-  // Loading and error states
-  const [isLoading, setIsLoading] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+  // Modal states
+  const [showIncomeModal, setShowIncomeModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
 
   const colors = {
     background: '#1A1B1F',
@@ -64,133 +72,10 @@ const AddBudgetScreen: React.FC = () => {
     router.back();
   };
 
-  // Validation functions
-  const validateForm = (): boolean => {
-    const errors: {[key: string]: string} = {};
-
-    // Validate budget name
-    if (!formData.budgetName.trim()) {
-      errors.budgetName = 'Budget name is required';
-    } else if (formData.budgetName.trim().length < 2) {
-      errors.budgetName = 'Budget name must be at least 2 characters';
-    } else if (formData.budgetName.trim().length > 50) {
-      errors.budgetName = 'Budget name must be less than 50 characters';
-    }
-
-    // Validate limit amount
-    const limitAmountStr = formData.limitAmount.replace(/[^0-9.]/g, ''); // Remove non-numeric chars except decimal
-    const limitAmount = parseFloat(limitAmountStr);
-    
-    if (limitAmountStr && isNaN(limitAmount)) {
-      errors.limitAmount = 'Please enter a valid amount';
-    } else if (limitAmount < 0) {
-      errors.limitAmount = 'Amount cannot be negative';
-    } else if (limitAmount > 999999999) {
-      errors.limitAmount = 'Amount is too large';
-    }
-
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Transform form data to match database schema
-  const transformFormData = (): NewBudget => {
-    // Clean and parse the limit amount
-    const limitAmountStr = formData.limitAmount.replace(/[^0-9.]/g, '');
-    const limitAmount = limitAmountStr ? parseFloat(limitAmountStr) : 0;
-    
-    const startDate = new Date();
-    
-    // Map period to schema enum
-    const periodTypeMap = {
-      'Monthly': 'monthly' as const,
-      'Weekly': 'weekly' as const,
-      'Custom Range': 'custom' as const,
-    };
-
-    // Calculate end date based on period (if recurring budget is enabled)
-    let endDate: Date | undefined;
-    if (formData.isRecurring) {
-      if (formData.period === 'Monthly') {
-        endDate = new Date(startDate);
-        endDate.setMonth(endDate.getMonth() + 1);
-      } else if (formData.period === 'Weekly') {
-        endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + 7);
-      }
-      // For 'Custom Range', endDate would be set based on user selection (not implemented yet)
-    }
-
-    return {
-      name: formData.budgetName.trim(),
-      icon: formData.icon,
-      color: formData.color,
-      limitAmount: limitAmount > 0 ? limitAmount : null, // null for tracking-only budgets
-      periodType: periodTypeMap[formData.period],
-      startDate,
-      endDate: endDate || null,
-      isArchived: false,
-    };
-  };
-
-  const handleCreateBudget = async () => {
-    // Validate form
-    if (!validateForm()) {
-      // Focus on first error field
-      if (validationErrors.budgetName) {
-        // Could add ref to focus the input
-      }
-      return;
-    }
-
-    setIsLoading(true);
-    
-    try {
-      // Transform form data to match schema
-      const budgetData = transformFormData();
-      
-      // Create budget using transaction
-      const newBudget = await BudgetService.create(budgetData);
-      
-      console.log('Budget created successfully:', newBudget);
-      
-      // Show success feedback and navigate back
-      Alert.alert(
-        'Success!',
-        `Budget "${newBudget.name}" created successfully.`,
-        [
-          { 
-            text: 'OK', 
-            onPress: () => router.back() 
-          }
-        ]
-      );
-      
-    } catch (error) {
-      console.error('Failed to create budget:', error);
-      
-      // Show specific error message based on error type
-      let errorMessage = 'Failed to create budget. Please try again.';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('UNIQUE constraint')) {
-          errorMessage = 'A budget with this name already exists.';
-        } else if (error.message.includes('NOT NULL constraint')) {
-          errorMessage = 'Please fill in all required fields.';
-        }
-      }
-      
-      Alert.alert('Error', errorMessage, [{ text: 'OK' }]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateFormData = (field: keyof FormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear validation errors for the field being updated
-    if (validationErrors[field]) {
-      setValidationErrors(prev => ({ ...prev, [field]: '' }));
+  const handlePeriodChange = (period: typeof periodOptions[number]) => {
+    updateFormData('period', period);
+    if (period === 'Custom Range') {
+      setShowDateRangePicker(true);
     }
   };
 
@@ -241,22 +126,22 @@ const AddBudgetScreen: React.FC = () => {
         { 
           backgroundColor: colors.inputBackground,
           borderBottomColor: validationErrors.limitAmount ? colors.error : 'transparent',
-          borderBottomWidth: validationErrors.limitAmount ? 1 : 0,
+          borderBottomWidth: validationErrors.income ? 1 : 0,
         }
       ]}>
         <Text style={[styles.currencySymbol, { color: colors.subText }]}>$</Text>
         <TextInput
           style={[styles.amountValue, { color: colors.text }]}
-          value={formData.limitAmount}
-          onChangeText={(text) => updateFormData('limitAmount', text)}
+          value={formData.income}
+          onChangeText={(text) => updateFormData('income', text)}
           keyboardType="numeric"
           placeholder="0.00"
           placeholderTextColor={colors.subText}
         />
       </View>
-      {validationErrors.limitAmount && (
+      {validationErrors.income && (
         <Text style={[styles.errorText, { color: colors.error }]}>
-          {validationErrors.limitAmount}
+          {validationErrors.income}
         </Text>
       )}
       <Text style={[styles.helperText, { color: colors.subText }]}>
@@ -278,7 +163,7 @@ const AddBudgetScreen: React.FC = () => {
                 backgroundColor: formData.period === option ? colors.primaryBlue : colors.inputBackground,
               }
             ]}
-            onPress={() => updateFormData('period', option)}
+            onPress={() => handlePeriodChange(option)}
           >
             <Text
               style={[
@@ -293,103 +178,77 @@ const AddBudgetScreen: React.FC = () => {
           </TouchableOpacity>
         ))}
       </View>
-    </View>
-  );
-
-  const renderLinkedAccounts = () => (
-    <View style={[styles.optionCard, { backgroundColor: colors.cardBackground }]}>
-      <View style={styles.optionHeader}>
-        <View style={styles.optionInfo}>
-          <View style={[styles.optionIcon, { backgroundColor: '#4A9EFF20' }]}>
-            <IconSymbol name="creditcard.fill" size={16} color={colors.primaryBlue} />
-          </View>
-          <View style={styles.optionDetails}>
-            <Text style={[styles.optionTitle, { color: colors.text }]}>Linked Accounts</Text>
-            <Text style={[styles.optionSubtitle, { color: colors.subText }]}>
-              {formData.linkedAccounts}
-            </Text>
-          </View>
+      
+      {/* Show date range info if Custom Range is selected */}
+      {formData.period === 'Custom Range' && formData.customStartDate && formData.customEndDate && (
+        <View style={styles.dateRangeInfo}>
+          <Text style={[styles.dateRangeText, { color: colors.subText }]}>
+            {formData.customStartDate.toLocaleDateString()} - {formData.customEndDate.toLocaleDateString()}
+          </Text>
+          <TouchableOpacity onPress={() => setShowDateRangePicker(true)}>
+            <Text style={[styles.changeDateText, { color: colors.primaryBlue }]}>Change</Text>
+          </TouchableOpacity>
         </View>
-        <IconSymbol name="chevron.right" size={16} color={colors.subText} />
-      </View>
+      )}
     </View>
   );
 
   const renderRecurringBudget = () => (
-    <View style={[styles.optionCard, { backgroundColor: colors.cardBackground }]}>
-      <View style={styles.optionHeader}>
-        <View style={styles.optionInfo}>
-          <View style={[styles.optionIcon, { backgroundColor: '#9B59B620' }]}>
-            <IconSymbol name="arrow.triangle.2.circlepath" size={16} color="#9B59B6" />
-          </View>
-          <View style={styles.optionDetails}>
-            <Text style={[styles.optionTitle, { color: colors.text }]}>Recurring Budget</Text>
-            <Text style={[styles.optionSubtitle, { color: colors.subText }]}>
-              Renews automatically
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.toggle,
-            {
-              backgroundColor: formData.isRecurring ? colors.primaryBlue : colors.inputBackground,
-            }
-          ]}
-          onPress={() => updateFormData('isRecurring', !formData.isRecurring)}
-        >
-          <View
-            style={[
-              styles.toggleThumb,
-              {
-                backgroundColor: '#FFFFFF',
-                transform: [{ translateX: formData.isRecurring ? 20 : 2 }],
-              }
-            ]}
-          />
-        </TouchableOpacity>
-      </View>
-    </View>
+    <OptionCard
+      icon="arrow.triangle.2.circlepath"
+      iconColor="#9B59B6"
+      iconBackgroundColor="#9B59B620"
+      title="Recurring Budget"
+      subtitle="Renews automatically"
+      rightElement={
+        <ToggleSwitch
+          isOn={formData.isRecurring}
+          onToggle={() => updateFormData('isRecurring', !formData.isRecurring)}
+          colors={colors}
+        />
+      }
+      colors={colors}
+    />
   );
 
   const renderIncome = () => (
-    <View style={[styles.optionCard, { backgroundColor: colors.cardBackground }]}>
-      <View style={styles.optionHeader}>
-        <View style={styles.optionInfo}>
-          <View style={[styles.optionIcon, { backgroundColor: '#2ECC7120' }]}>
-            <IconSymbol name="dollarsign" size={16} color="#2ECC71" />
-          </View>
-          <View style={styles.optionDetails}>
-            <Text style={[styles.optionTitle, { color: colors.text }]}>Income</Text>
-            <Text style={[styles.optionSubtitle, { color: colors.subText }]}>Optional</Text>
-          </View>
-        </View>
-        <Text style={[styles.incomeAmount, { color: colors.subText }]}>
-          {formData.income}
-        </Text>
-      </View>
-    </View>
+    <OptionCard
+      icon="dollarsign"
+      iconColor="#2ECC71"
+      iconBackgroundColor="#2ECC7120"
+      title="Income"
+      subtitle={formData.income !== '0.00' ? `$${formData.income}` : 'Add income (optional)'}
+      rightElement={<IconSymbol name="chevron.right" size={16} color={colors.subText} />}
+      onPress={() => setShowIncomeModal(true)}
+      colors={colors}
+    />
   );
 
   const renderRecurringExpenses = () => (
-    <View style={[styles.optionCard, { backgroundColor: colors.cardBackground }]}>
-      <View style={styles.optionHeader}>
-        <View style={styles.optionInfo}>
-          <View style={[styles.optionIcon, { backgroundColor: '#FF8A4A20' }]}>
-            <IconSymbol name="calendar" size={16} color="#FF8A4A" />
-          </View>
-          <View style={styles.optionDetails}>
-            <Text style={[styles.optionTitle, { color: colors.text }]}>Recurring Expenses</Text>
-            <Text style={[styles.optionSubtitle, { color: colors.subText }]}>
-              Add fixed costs
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity>
-          <Text style={[styles.addButton, { color: colors.primaryBlue }]}>Add +</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <OptionCard
+      icon="calendar"
+      iconColor="#FF8A4A"
+      iconBackgroundColor="#FF8A4A20"
+      title="Recurring Expenses"
+      subtitle={
+        formData.recurringExpenses.length > 0 
+          ? `${formData.recurringExpenses.length} expenses added`
+          : 'Add fixed costs'
+      }
+      rightElement={
+        <Text style={[styles.addButton, { color: colors.primaryBlue }]}>
+          {formData.recurringExpenses.length > 0 ? 'Edit' : 'Add +'}
+        </Text>
+      }
+      onPress={() => setShowExpenseModal(true)}
+      colors={colors}
+    >
+      <RecurringExpenseList
+        expenses={formData.recurringExpenses}
+        onDelete={removeRecurringExpense}
+        colors={colors}
+      />
+    </OptionCard>
   );
 
   return (
@@ -401,7 +260,9 @@ const AddBudgetScreen: React.FC = () => {
         <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
           <IconSymbol name="xmark" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>New Budget</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {isEditMode ? 'Edit Budget' : 'New Budget'}
+        </Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -420,12 +281,39 @@ const AddBudgetScreen: React.FC = () => {
 
         {/* Options */}
         <View style={styles.optionsContainer}>
-          {renderLinkedAccounts()}
           {renderRecurringBudget()}
-          {renderIncome()}
+          {/* {renderIncome()} */}
           {renderRecurringExpenses()}
         </View>
       </ScrollView>
+
+      {/* Modals */}
+      <IncomeModal
+        isVisible={showIncomeModal}
+        onClose={() => setShowIncomeModal(false)}
+        onSave={updateIncome}
+        currentIncome={formData.income}
+        colors={colors}
+      />
+
+      <RecurringExpenseModal
+        isVisible={showExpenseModal}
+        onClose={() => setShowExpenseModal(false)}
+        onSave={addRecurringExpense}
+        colors={colors}
+      />
+
+      <DateRangePicker
+        isVisible={showDateRangePicker}
+        onClose={() => setShowDateRangePicker(false)}
+        onDateRangeSelect={(startDate, endDate) => {
+          handleDateRangeChange(startDate, endDate);
+          setShowDateRangePicker(false);
+        }}
+        initialStartDate={formData.customStartDate}
+        initialEndDate={formData.customEndDate}
+        colors={colors}
+      />
 
       {/* Create Button */}
       <TouchableOpacity
@@ -436,7 +324,7 @@ const AddBudgetScreen: React.FC = () => {
             opacity: isLoading ? 0.7 : 1,
           }
         ]}
-        onPress={handleCreateBudget}
+        onPress={submitForm}
         disabled={isLoading}
       >
         {isLoading ? (
@@ -445,7 +333,9 @@ const AddBudgetScreen: React.FC = () => {
             <Text style={[styles.createButtonText, { marginLeft: 8 }]}>Creating...</Text>
           </View>
         ) : (
-          <Text style={styles.createButtonText}>Create Budget</Text>
+          <Text style={styles.createButtonText}>
+            {isEditMode ? 'Update Budget' : 'Create Budget'}
+          </Text>
         )}
       </TouchableOpacity>
     </SafeAreaView>
@@ -572,56 +462,6 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 100,
   },
-  optionCard: {
-    borderRadius: 12,
-    padding: 16,
-  },
-  optionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  optionInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  optionIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  optionDetails: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  optionSubtitle: {
-    fontSize: 14,
-  },
-  toggle: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    position: 'absolute',
-  },
-  incomeAmount: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
   addButton: {
     fontSize: 16,
     fontWeight: '600',
@@ -648,6 +488,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Date range info styles
+  dateRangeInfo: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#33363A',
+    borderRadius: 8,
+  },
+  dateRangeText: {
+    fontSize: 14,
+  },
+  changeDateText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

@@ -9,7 +9,7 @@ export const budgets = sqliteTable('budgets', {
   name: text('name').notNull(),
   icon: text('icon').notNull(),
   color: text('color').notNull(),
-  limitAmount: real('limit_amount'), // Can be null for tracking-only budgets
+  income: real('income').notNull().default(0), // Monthly/period income for the budget
   periodType: text('period_type', { enum: ['monthly', 'weekly', 'custom', 'noEndDate'] }).notNull(),
   startDate: integer('start_date', { mode: 'timestamp' }).notNull(),
   endDate: integer('end_date', { mode: 'timestamp' }),

@@ -5,13 +5,16 @@ import type { Budget } from '@/db/schema/budgets';
 import { AccountService } from '@/db/services/accountService';
 import { BudgetService } from '@/db/services/budgetService';
 import { ExpenseService } from '@/db/services/expenseService';
+import { IncomeService } from '@/db/services/incomeService';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -31,6 +34,11 @@ interface Category {
 
 const AddTransactionScreen: React.FC = () => {
   const router = useRouter();
+  const params = useLocalSearchParams();
+  
+  // Check if we're in edit mode
+  const isEditMode = params.editMode === 'true';
+  const transactionId = params.transactionId as string;
   
   // Form state
   const [transactionType, setTransactionType] = useState<'Expense' | 'Income' | 'Transfer'>('Expense');
@@ -47,6 +55,7 @@ const AddTransactionScreen: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [isKeypadVisible, setIsKeypadVisible] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Data state
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -76,7 +85,7 @@ const AddTransactionScreen: React.FC = () => {
     { id: '5', name: 'Fun', icon: '🎬', color: '#9BA1A6' },
     { id: '6', name: 'Health', icon: '💊', color: '#F1C40F' },
     { id: '7', name: 'Education', icon: '🎓', color: '#E67E22' },
-    { id: '8', name: 'More', icon: '', color: '#666666' },
+    { id: '8', name: 'Miscellaneous', icon: '📦', color: '#666666' },
   ];
 
   // Load budgets and accounts data
@@ -113,6 +122,83 @@ const AddTransactionScreen: React.FC = () => {
     }, [loadData])
   );
 
+  // Load existing transaction data when in edit mode
+  useEffect(() => {
+    const loadEditData = async () => {
+      if (isEditMode && transactionId) {
+        try {
+          // Try to load as expense first, then as income
+          let expenseTransaction = await ExpenseService.getById(transactionId);
+          let incomeTransaction = null;
+          let isIncomeTransaction = false;
+          
+          if (!expenseTransaction) {
+            // Try loading as income
+            incomeTransaction = await IncomeService.getById(transactionId);
+            isIncomeTransaction = true;
+          }
+          
+          const transaction = expenseTransaction || incomeTransaction;
+          
+          if (transaction) {
+            // Set amount as absolute value for the input field
+            setAmount(Math.abs(transaction.amount).toString());
+            setDescription(transaction.description || '');
+            
+            // Find and set the correct budget
+            if (transaction.budgetId && budgets.length > 0) {
+              const budget = budgets.find(b => b.id === transaction.budgetId);
+              if (budget) {
+                setSelectedBudget(budget);
+              }
+            }
+            
+            // Find and set the correct account  
+            if (transaction.accountId && accounts.length > 0) {
+              const account = accounts.find(a => a.id === transaction.accountId);
+              if (account) {
+                setSelectedAccount(account);
+              }
+            }
+            
+            // Set transaction type based on the table it came from
+            if (isIncomeTransaction) {
+              setTransactionType('Income');
+            } else {
+              // For expenses, check if it's negative (expense/transfer) or positive (legacy income)
+              if (transaction.amount < 0) {
+                setTransactionType('Expense');
+              } else {
+                setTransactionType('Income');
+              }
+            }
+            
+            // Set date
+            if (transaction.date) {
+              setSelectedDate(new Date(transaction.date));
+            }
+            
+            // Set category if available (only for expenses)
+            if (!isIncomeTransaction && expenseTransaction?.category) {
+              // Create a simple category object from the stored string
+              setSelectedCategory({
+                id: expenseTransaction.category,
+                name: expenseTransaction.category,
+                icon: '💰', // Default icon
+                color: '#007AFF' // Default color
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load transaction for edit:', error);
+          Alert.alert('Error', 'Failed to load transaction data');
+        }
+      }
+    };
+
+    loadEditData();
+  }, [isEditMode, transactionId, budgets, accounts]);
+
   const handleClose = () => {
     router.back();
   };
@@ -138,30 +224,97 @@ const AddTransactionScreen: React.FC = () => {
     try {
       setIsSaving(true);
       
-      // Create expense using drizzle service
-      const expenseData = {
-        budgetId: selectedBudget.id,
-        accountId: selectedAccount?.id || null,
-        categoryId: null, // Using legacy category field for now
-        amount: amountValue,
-        description: description.trim(),
-        date: selectedDate,
-        category: selectedCategory.name,
-        isRecurring: false,
-        recurringExpenseId: null,
-        tags: null,
-        notes: notes.trim() || null,
-      };
+      if (transactionType === 'Income') {
+        // Handle income transactions
+        const incomeData = {
+          budgetId: selectedBudget.id,
+          accountId: selectedAccount?.id || null,
+          amount: amountValue, // Always positive for income
+          description: description.trim(),
+          date: selectedDate,
+          source: 'Manual Entry', // You could make this configurable
+          isRecurring: false,
+          recurringIncomeId: null,
+          tags: null,
+          notes: notes.trim() || null,
+        };
 
-      await ExpenseService.create(expenseData);
-      
-      Alert.alert('Success', 'Expense added successfully', [
+        if (isEditMode && transactionId) {
+          // For edit mode, we need to handle the case where transaction type might have changed
+          // First, try to find and delete the old transaction
+          const oldExpense = await ExpenseService.getById(transactionId);
+          const oldIncome = await IncomeService.getById(transactionId);
+          
+          if (oldExpense) {
+            // Delete old expense record
+            await ExpenseService.delete(transactionId);
+            // If it was an expense but user selected income, we'll create new income
+          }
+          
+          if (oldIncome) {
+            // Delete old income record
+            await IncomeService.delete(transactionId);
+            // Remove the old income from budget
+            await BudgetService.addIncome(selectedBudget.id, -oldIncome.amount);
+          }
+          
+          // Create new income
+          await IncomeService.create(incomeData);
+        } else {
+          await IncomeService.create(incomeData);
+        }
+        
+        // Add income to budget
+        await BudgetService.addIncome(selectedBudget.id, amountValue);
+        
+      } else {
+        // Handle expense and transfer transactions
+        const expenseData = {
+          budgetId: selectedBudget.id,
+          accountId: selectedAccount?.id || null,
+          categoryId: null, // Using legacy category field for now
+          amount: -Math.abs(amountValue), // Always negative for expenses/transfers
+          description: description.trim(),
+          date: selectedDate,
+          category: selectedCategory.name,
+          isRecurring: false,
+          recurringExpenseId: null,
+          tags: null,
+          notes: notes.trim() || null,
+        };
+
+        if (isEditMode && transactionId) {
+          // For edit mode, handle transaction type changes
+          const oldExpense = await ExpenseService.getById(transactionId);
+          const oldIncome = await IncomeService.getById(transactionId);
+          
+          if (oldIncome) {
+            // Remove old income from budget first
+            await BudgetService.addIncome(selectedBudget.id, -oldIncome.amount);
+            // Delete old income record
+            await IncomeService.delete(transactionId);
+          }
+          
+          if (oldExpense) {
+            // Update existing expense
+            await ExpenseService.update(transactionId, expenseData);
+          } else {
+            // Create new expense (was previously income)
+            await ExpenseService.create(expenseData);
+          }
+        } else {
+          // Create new expense
+          await ExpenseService.create(expenseData);
+        }
+      }
+
+      Alert.alert('Success', `Transaction ${isEditMode ? 'updated' : 'added'} successfully`, [
         { text: 'OK', onPress: () => router.back() }
       ]);
 
     } catch (err) {
-      console.error('Failed to save expense:', err);
-      Alert.alert('Error', 'Failed to save expense. Please try again.');
+      console.error('Failed to save transaction:', err);
+      Alert.alert('Error', `Failed to ${isEditMode ? 'update' : 'save'} transaction. Please try again.`);
     } finally {
       setIsSaving(false);
     }
@@ -172,15 +325,15 @@ const AddTransactionScreen: React.FC = () => {
   };
 
   const handleDateSelect = () => {
-    // For simplicity, we'll cycle through today, yesterday, and custom
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    
-    if (selectedDate.toDateString() === today.toDateString()) {
-      setSelectedDate(yesterday);
-    } else {
-      setSelectedDate(today);
+    setShowDatePicker(true);
+  };
+
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setSelectedDate(selectedDate);
     }
   };
 
@@ -190,13 +343,17 @@ const AddTransactionScreen: React.FC = () => {
         <IconSymbol name="xmark" size={20} color={colors.text} />
       </TouchableOpacity>
       
-      <Text style={[styles.headerTitle, { color: colors.text }]}>Add Transaction</Text>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>
+        {isEditMode ? 'Edit Transaction' : 'Add Transaction'}
+      </Text>
       
       <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving}>
         {isSaving ? (
           <ActivityIndicator size="small" color={colors.primaryBlue} />
         ) : (
-          <Text style={[styles.saveText, { color: colors.primaryBlue }]}>Save</Text>
+          <Text style={[styles.saveText, { color: colors.primaryBlue }]}>
+            {isEditMode ? 'Update' : 'Save'}
+          </Text>
         )}
       </TouchableOpacity>
     </View>
@@ -319,9 +476,9 @@ const AddTransactionScreen: React.FC = () => {
     <View style={styles.categorySection}>
       <View style={styles.categorySectionHeader}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>CATEGORY</Text>
-        <TouchableOpacity>
+        {/* <TouchableOpacity>
           <Text style={[styles.seeAllButton, { color: colors.primaryBlue }]}>See All</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
       
       <View style={styles.categoriesGrid}>
@@ -442,7 +599,7 @@ const AddTransactionScreen: React.FC = () => {
       
       {/* Calendar and checkmark buttons */}
       <View style={styles.keypadActions}>
-        <TouchableOpacity style={styles.keypadActionButton} onPress={handleDateSelect}>
+        <TouchableOpacity style={styles.keypadActionButton} onPress={() => setShowDatePicker(true)}>
           <IconSymbol name="calendar" size={20} color={colors.subText} />
         </TouchableOpacity>
         
@@ -501,13 +658,57 @@ const AddTransactionScreen: React.FC = () => {
                 {renderDescriptionInput()}
                 {renderBudgetSelector()}
                 {renderAccountSelector()}
-                {renderCategorySelector()}
+                {transactionType !== 'Income' && renderCategorySelector()}
                 {renderDateSelector()}
                 {renderNotesInput()}
               </ScrollView>
             </TouchableWithoutFeedback>
 
             {isKeypadVisible && renderKeypad()}
+
+            {/* Date Picker Modal */}
+            {showDatePicker && Platform.OS === 'ios' && (
+              <Modal
+                transparent={true}
+                animationType="slide"
+                visible={showDatePicker}
+                onRequestClose={() => setShowDatePicker(false)}
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+                    <View style={styles.modalHeader}>
+                      <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                        <Text style={[styles.modalButton, { color: colors.primaryBlue }]}>Cancel</Text>
+                      </TouchableOpacity>
+                      <Text style={[styles.modalTitle, { color: colors.text }]}>Select Date</Text>
+                      <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                        <Text style={[styles.modalButton, { color: colors.primaryBlue }]}>Done</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={selectedDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={onDateChange}
+                      maximumDate={new Date()}
+                      textColor={colors.text}
+                      themeVariant="dark"
+                    />
+                  </View>
+                </View>
+              </Modal>
+            )}
+            
+            {/* Android Date Picker */}
+            {showDatePicker && Platform.OS === 'android' && (
+              <DateTimePicker
+                value={selectedDate}
+                mode="date"
+                display="default"
+                onChange={onDateChange}
+                maximumDate={new Date()}
+              />
+            )}
           </KeyboardAvoidingView>
         )}
       </View>
@@ -744,6 +945,33 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#404348',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalButton: {
     fontSize: 16,
     fontWeight: '500',
   },

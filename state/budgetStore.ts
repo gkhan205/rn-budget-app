@@ -73,7 +73,7 @@ export const budgetToData = (budget: Budget): BudgetData => ({
   name: budget.name,
   icon: budget.icon,
   color: budget.color,
-  limitAmount: budget.limitAmount,
+  limitAmount: budget.income, // Map income to limitAmount for compatibility
   periodType: budget.periodType,
   startDate: budget.startDate,
   endDate: budget.endDate,
