@@ -2,6 +2,7 @@ import { asc, count, desc, sql, sum } from 'drizzle-orm';
 import { getDrizzleDb } from '../config';
 import { budgets } from '../schema/budgets';
 import { expenses } from '../schema/expenses';
+import { income } from '../schema/income';
 import { recurringExpenses } from '../schema/recurringExpenses';
 
 /**
@@ -68,11 +69,11 @@ export class StatsService {
       whereConditions.push(sql`${expenses.budgetId} = ${budgetId}`);
     }
     if (startDate && endDate) {
-      whereConditions.push(sql`${expenses.date} BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`);
     } else if (startDate) {
-      whereConditions.push(sql`${expenses.date} >= ${startDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} >= ${startDate.getTime()}`);
     } else if (endDate) {
-      whereConditions.push(sql`${expenses.date} <= ${endDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} <= ${endDate.getTime()}`);
     }
 
     const query = db
@@ -110,7 +111,7 @@ export class StatsService {
     
     // Build WHERE conditions array
     const whereConditions = [
-      sql`${expenses.date} BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}`
+      sql`${expenses.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`
     ];
     
     if (budgetId) {
@@ -150,11 +151,11 @@ export class StatsService {
     // Build WHERE conditions for expenses
     const expenseConditions = [];
     if (startDate && endDate) {
-      expenseConditions.push(sql`${expenses.date} BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}`);
+      expenseConditions.push(sql`${expenses.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`);
     } else if (startDate) {
-      expenseConditions.push(sql`${expenses.date} >= ${startDate.toISOString()}`);
+      expenseConditions.push(sql`${expenses.date} >= ${startDate.getTime()}`);
     } else if (endDate) {
-      expenseConditions.push(sql`${expenses.date} <= ${endDate.toISOString()}`);
+      expenseConditions.push(sql`${expenses.date} <= ${endDate.getTime()}`);
     }
 
     // Get actual spending per budget
@@ -239,11 +240,11 @@ export class StatsService {
     // Build WHERE conditions array
     const whereConditions = [];
     if (startDate && endDate) {
-      whereConditions.push(sql`${expenses.date} BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`);
     } else if (startDate) {
-      whereConditions.push(sql`${expenses.date} >= ${startDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} >= ${startDate.getTime()}`);
     } else if (endDate) {
-      whereConditions.push(sql`${expenses.date} <= ${endDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} <= ${endDate.getTime()}`);
     }
 
     if (budgetId) {
@@ -389,11 +390,11 @@ export class StatsService {
     const whereConditions = [sql`${expenses.category} IS NOT NULL`];
     
     if (startDate && endDate) {
-      whereConditions.push(sql`${expenses.date} BETWEEN ${startDate.toISOString()} AND ${endDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`);
     } else if (startDate) {
-      whereConditions.push(sql`${expenses.date} >= ${startDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} >= ${startDate.getTime()}`);
     } else if (endDate) {
-      whereConditions.push(sql`${expenses.date} <= ${endDate.toISOString()}`);
+      whereConditions.push(sql`${expenses.date} <= ${endDate.getTime()}`);
     }
 
     if (budgetId) {
@@ -421,5 +422,161 @@ export class StatsService {
       transactionCount: Number(row.transactionCount) || 0,
       avgTransactionAmount: Number(row.avgTransactionAmount) || 0,
     }));
+  }
+
+  /**
+   * Get statistics grouped by category for both income and expenses
+   * Type parameter: 'income' or 'expense'
+   */
+  static async getCategoryStats(
+    type: 'income' | 'expense',
+    startDate?: Date,
+    endDate?: Date,
+    budgetId?: string
+  ): Promise<CategorySpendingStats[]> {
+    const db = getDrizzleDb();
+    const isIncome = type === 'income';
+    const table = isIncome ? income : expenses;
+    const categoryField = isIncome ? income.source : expenses.category;
+    
+    // Build WHERE conditions array
+    const whereConditions = isIncome ? [] : [sql`${expenses.category} IS NOT NULL`];
+    
+    if (budgetId) {
+      whereConditions.push(sql`${table.budgetId} = ${budgetId}`);
+    }
+    if (startDate && endDate) {
+      whereConditions.push(sql`${table.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`);
+    } else if (startDate) {
+      whereConditions.push(sql`${table.date} >= ${startDate.getTime()}`);
+    } else if (endDate) {
+      whereConditions.push(sql`${table.date} <= ${endDate.getTime()}`);
+    }
+
+    const query = db
+      .select({
+        category: categoryField,
+        totalAmount: sum(table.amount).as('total_amount'),
+        transactionCount: count(table.id).as('transaction_count'),
+        avgTransactionAmount: sql<number>`ROUND(AVG(${table.amount}), 2)`.as('avg_amount')
+      })
+      .from(table)
+      .where(whereConditions.length > 0 ? sql.join(whereConditions, sql.raw(' AND ')) : undefined)
+      .groupBy(categoryField)
+      .orderBy(desc(sql`total_amount`));
+
+    const results = await query;
+    
+    return results.map(row => ({
+      category: row.category || (isIncome ? 'Other Income' : 'Unknown'),
+      totalAmount: Number(row.totalAmount) || 0,
+      transactionCount: Number(row.transactionCount) || 0,
+      avgTransactionAmount: Number(row.avgTransactionAmount) || 0,
+    }));
+  }
+
+  /**
+   * Get daily trends for both income and expenses
+   */
+  static async getDailyTrends(
+    type: 'income' | 'expense',
+    startDate: Date,
+    endDate: Date,
+    budgetId?: string
+  ): Promise<DailySpendingTrend[]> {
+    const db = getDrizzleDb();
+    const isIncome = type === 'income';
+    const table = isIncome ? income : expenses;
+    
+    // Build WHERE conditions array
+    const whereConditions = [
+      sql`${table.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`
+    ];
+    
+    if (budgetId) {
+      whereConditions.push(sql`${table.budgetId} = ${budgetId}`);
+    }
+
+    const query = db
+      .select({
+        date: sql<string>`DATE(${table.date} / 1000, 'unixepoch')`.as('transaction_date'),
+        totalAmount: sum(table.amount).as('daily_total'),
+        transactionCount: count(table.id).as('daily_count')
+      })
+      .from(table)
+      .where(sql.join(whereConditions, sql.raw(' AND ')))
+      .groupBy(sql`DATE(${table.date} / 1000, 'unixepoch')`)
+      .orderBy(asc(sql`transaction_date`));
+
+    const results = await query;
+    
+    return results.map(row => ({
+      date: row.date,
+      totalAmount: Number(row.totalAmount) || 0,
+      transactionCount: Number(row.transactionCount) || 0,
+    }));
+  }
+
+  /**
+   * Get recurring vs non-recurring stats for both income and expenses
+   */
+  static async getRecurringVsNonRecurringStatsForType(
+    type: 'income' | 'expense',
+    startDate?: Date,
+    endDate?: Date,
+    budgetId?: string
+  ): Promise<RecurringVsNonRecurringStats> {
+    const db = getDrizzleDb();
+    const isIncome = type === 'income';
+    const table = isIncome ? income : expenses;
+    
+    // Build WHERE conditions array
+    const whereConditions = [];
+    if (startDate && endDate) {
+      whereConditions.push(sql`${table.date} BETWEEN ${startDate.getTime()} AND ${endDate.getTime()}`);
+    } else if (startDate) {
+      whereConditions.push(sql`${table.date} >= ${startDate.getTime()}`);
+    } else if (endDate) {
+      whereConditions.push(sql`${table.date} <= ${endDate.getTime()}`);
+    }
+
+    if (budgetId) {
+      whereConditions.push(sql`${table.budgetId} = ${budgetId}`);
+    }
+
+    const queryBuilder = db
+      .select({
+        recurringTotal: sql<number>`SUM(CASE WHEN ${table.isRecurring} = 1 THEN ${table.amount} ELSE 0 END)`.as('recurring_total'),
+        nonRecurringTotal: sql<number>`SUM(CASE WHEN ${table.isRecurring} = 0 OR ${table.isRecurring} IS NULL THEN ${table.amount} ELSE 0 END)`.as('non_recurring_total'),
+        totalAmount: sum(table.amount).as('total_amount'),
+        recurringCount: sql<number>`COUNT(CASE WHEN ${table.isRecurring} = 1 THEN 1 END)`.as('recurring_count'),
+        nonRecurringCount: sql<number>`COUNT(CASE WHEN ${table.isRecurring} = 0 OR ${table.isRecurring} IS NULL THEN 1 END)`.as('non_recurring_count'),
+      })
+      .from(table);
+
+    const query = whereConditions.length > 0 
+      ? queryBuilder.where(sql.join(whereConditions, sql.raw(' AND ')))
+      : queryBuilder;
+
+    const [result] = await query;
+    
+    const recurringTotal = Number(result.recurringTotal) || 0;
+    const nonRecurringTotal = Number(result.nonRecurringTotal) || 0;
+    const totalAmount = Number(result.totalAmount) || 0;
+    const recurringCount = Number(result.recurringCount) || 0;
+    const nonRecurringCount = Number(result.nonRecurringCount) || 0;
+
+    const recurringPercentage = totalAmount > 0 ? Math.round((recurringTotal / totalAmount) * 100) : 0;
+    const nonRecurringPercentage = totalAmount > 0 ? Math.round((nonRecurringTotal / totalAmount) * 100) : 0;
+
+    return {
+      recurringTotal,
+      nonRecurringTotal,
+      totalAmount,
+      recurringPercentage,
+      nonRecurringPercentage,
+      recurringCount,
+      nonRecurringCount,
+    };
   }
 }

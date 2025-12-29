@@ -38,6 +38,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="stats"
         options={{
+          href: null, // Hide from tabs
           title: 'Stats',
           tabBarIcon: ({ color, focused }) => (
             <IconSymbol name="chart.pie.fill" size={24} color={color} />

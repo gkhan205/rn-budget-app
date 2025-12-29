@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     minWidth: 120,
   },
   clearButtonContainer: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingTop: 8,
   },
   clearButton: {

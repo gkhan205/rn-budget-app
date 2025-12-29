@@ -195,7 +195,7 @@ const BudgetsScreen: React.FC = () => {
 
       // Calculate summary totals
       const totalPlanned = budgetItemsData.reduce((sum, item) => sum + (item.limit || 0), 0);
-      const totalSpent = budgetItemsData.reduce((sum, item) => sum + item.spent, 0);
+      const totalSpent = Math.abs(budgetItemsData.reduce((sum, item) => sum + item.spent, 0));
       const remaining = totalPlanned - totalSpent;
       const expectedSavings = Math.max(0, remaining); // Simple calculation
 
@@ -347,7 +347,7 @@ const BudgetsScreen: React.FC = () => {
           <Text style={styles.expectedSavingsAmount}>
             ${budgetSummary.expectedSavings.toLocaleString()}.00
           </Text>
-          <Text style={styles.savingsChange}>📈 +12% vs last month</Text>
+          {/* <Text style={styles.savingsChange}>📈 +12% vs last month</Text> */}
         </View>
 
         <View style={styles.summaryCards}>
@@ -371,7 +371,7 @@ const BudgetsScreen: React.FC = () => {
           </View>
         </View>
 
-        <Text style={styles.categoriesTitle}>Categories</Text>
+        <Text style={[styles.categoriesTitle, { color: colors.text }]}>Your Budgets</Text>
       </View>
     </View>
   );
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 20,
+    marginBottom: 2,
   },
   budgetCard: {
     marginHorizontal: 20,

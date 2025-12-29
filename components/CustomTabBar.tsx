@@ -24,7 +24,7 @@ const tabs: TabItem[] = [
     { key: 'home', label: 'Home', icon: 'house.fill', route: '/(tabs)/budgets' },
     { key: 'transactions', label: 'Transactions', icon: 'list.bullet', route: '/(tabs)/transactions' },
     // { key: 'add', label: 'Add', icon: 'plus', route: '/add-transaction' },
-    { key: 'stats', label: 'Stats', icon: 'chart.pie.fill', route: '/(tabs)/stats' },
+    // { key: 'stats', label: 'Stats', icon: 'chart.pie.fill', route: '/(tabs)/stats' },
     { key: 'settings', label: 'Settings', icon: 'gearshape.fill', route: '/(tabs)/explore' },
 ];
 

@@ -103,9 +103,9 @@ const TransactionsScreen: React.FC = () => {
   const renderHeader = () => (
     <View style={[styles.header, { backgroundColor: colors.background }]}>
       <Text style={[styles.headerTitle, { color: colors.text }]}>Transactions</Text>
-      <TouchableOpacity onPress={handleFilterPress} style={styles.searchButton}>
+      {/* <TouchableOpacity onPress={handleFilterPress} style={styles.searchButton}>
         <IconSymbol name="magnifyingglass" size={24} color={colors.text} />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 
