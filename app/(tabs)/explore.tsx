@@ -1,7 +1,9 @@
 import { DatabaseBackupModal } from '@/components/DatabaseBackupModal';
 import { ExpenseExportModal } from '@/components/ExpenseExportModal';
 import MainLayout from '@/components/MainLayout';
+import { CurrencySelector, MonthStartPicker } from '@/components/settings';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useSettings } from '@/hooks/useSettings';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -12,27 +14,22 @@ import {
   View,
 } from 'react-native';
 
-interface SettingsItem {
-  id: string;
-  title: string;
-  value?: string;
-  icon: string;
-  iconColor: string;
-  hasToggle?: boolean;
-  isEnabled?: boolean;
-}
-
-interface SettingsSection {
-  id: string;
-  title: string;
-  items: SettingsItem[];
-}
-
 export default function MoreScreen() {
   const router = useRouter();
   const [isExportModalVisible, setIsExportModalVisible] = useState(false);
   const [isBackupModalVisible, setIsBackupModalVisible] = useState(false);
-  
+
+  // Settings hook for managing settings state
+  const {
+    currentCurrency,
+    monthStartDate,
+    updateCurrency,
+    updateMonthStartDate,
+    availableCurrencies,
+    monthStartOptions,
+    isInitialized,
+  } = useSettings();
+
   const colors = {
     background: '#1A1B1F',
     cardBackground: '#2A2D32',
@@ -44,240 +41,111 @@ export default function MoreScreen() {
     sectionHeader: '#9BA1A6',
   };
 
-  const sections: SettingsSection[] = [
-    {
-      id: 'transactions',
-      title: 'TRANSACTION & GENERAL',
-      items: [
-        {
-          id: 'currency',
-          title: 'Currency',
-          value: 'USD $',
-          icon: 'dollarsign.circle',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'monthly_start',
-          title: 'Monthly Start Date',
-          value: '1st',
-          icon: 'calendar',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'budget_carryover',
-          title: 'Budget Carry-over',
-          icon: 'chart.line.uptrend.xyaxis',
-          iconColor: colors.primaryBlue,
-          hasToggle: true,
-          isEnabled: true,
-        },
-        {
-          id: 'default_account',
-          title: 'Default Account',
-          value: 'Cash',
-          icon: 'creditcard',
-          iconColor: colors.primaryBlue,
-        },
-      ],
-    },
-    {
-      id: 'management',
-      title: 'MANAGEMENT',
-      items: [
-        {
-          id: 'categories',
-          title: 'Categories',
-          icon: 'folder',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'recurring_manager',
-          title: 'Recurring Manager',
-          icon: 'arrow.clockwise',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'accounts',
-          title: 'Accounts',
-          icon: 'building.columns',
-          iconColor: colors.primaryBlue,
-        },
-      ],
-    },
-    {
-      id: 'data_security',
-      title: 'DATA & SECURITY',
-      items: [
-        {
-          id: 'app_lock',
-          title: 'App Lock',
-          value: 'FaceID',
-          icon: 'lock',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'backup_restore',
-          title: 'Backup & Restore',
-          value: 'Last: Today',
-          icon: 'icloud',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'export_data',
-          title: 'Export Data',
-          icon: 'square.and.arrow.up',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'import_backup',
-          title: 'Database Backup',
-          icon: 'server.rack',
-          iconColor: '#9B59B6',
-        },
-      ],
-    },
-    {
-      id: 'app_info',
-      title: 'APP INFO',
-      items: [
-        {
-          id: 'theme',
-          title: 'Theme',
-          value: 'Dark',
-          icon: 'moon',
-          iconColor: colors.primaryBlue,
-        },
-        {
-          id: 'about',
-          title: 'About',
-          icon: 'info.circle',
-          iconColor: colors.primaryBlue,
-        },
-      ],
-    },
-  ];
-
   const renderHeader = () => (
     <View style={[styles.header, { backgroundColor: colors.background }]}>
-      <Text style={[styles.headerTitle, { color: colors.text }]}>More</Text>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>Settings</Text>
     </View>
   );
 
-  const renderPremiumCard = () => (
-    <View style={[styles.premiumCard, { backgroundColor: colors.premiumBlue }]}>
-      <View style={styles.premiumIcon}>
-        <IconSymbol name="star.fill" size={20} color="#FFFFFF" />
-      </View>
-      
-      <View style={styles.premiumContent}>
-        <Text style={styles.premiumTitle}>Upgrade to Premium</Text>
-        <Text style={styles.premiumSubtitle}>
-          Unlock Cloud Sync, Unlimited Budgets, and AI insights.
-        </Text>
-        
-        <TouchableOpacity 
-          style={styles.premiumButton}
-          onPress={() => router.push('/premium')}
-        >
-          <Text style={styles.premiumButtonText}>Go Pro</Text>
-          <IconSymbol name="arrow.right" size={16} color={colors.background} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderOnboardingCard = () => (
-    <View style={[styles.premiumCard, { backgroundColor: '#2A2D32' }]}>
-      <View style={styles.premiumIcon}>
-        <IconSymbol name="graduationcap.fill" size={20} color={colors.primaryBlue} />
-      </View>
-      
-      <View style={styles.premiumContent}>
-        <Text style={styles.premiumTitle}>Try Onboarding Flow</Text>
-        <Text style={styles.premiumSubtitle}>
-          Experience the complete onboarding process with all 6 screens.
-        </Text>
-        
-        <TouchableOpacity 
-          style={styles.premiumButton}
-          onPress={() => router.push('/onboarding/welcome')}
-        >
-          <Text style={styles.premiumButtonText}>Start Onboarding</Text>
-          <IconSymbol name="arrow.right" size={16} color={colors.background} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderToggle = (isEnabled: boolean) => (
-    <View style={[
-      styles.toggle,
-      { backgroundColor: isEnabled ? colors.primaryBlue : colors.border }
-    ]}>
-      <View style={[
-        styles.toggleKnob,
-        {
-          backgroundColor: '#FFFFFF',
-          transform: [{ translateX: isEnabled ? 20 : 2 }]
-        }
-      ]} />
-    </View>
-  );
-
-  const renderSettingsItem = (item: SettingsItem) => {
-    const handlePress = () => {
-      if (item.id === 'export_data') {
-        setIsExportModalVisible(true);
-      } else if (item.id === 'import_backup') {
-        setIsBackupModalVisible(true);
-      }
-      // Add other navigation logic here as needed
-    };
-
-    return (
-      <TouchableOpacity
-        key={item.id}
-        style={[styles.settingsItem, { borderBottomColor: colors.border }]}
-        onPress={handlePress}
-      >
-        <View style={styles.itemLeft}>
-          <View style={[styles.itemIcon, { backgroundColor: item.iconColor + '20' }]}>
-            <IconSymbol 
-              name={item.icon as any} 
-              size={20} 
-              color={item.iconColor} 
-            />
-          </View>
-          <Text style={[styles.itemTitle, { color: colors.text }]}>
-            {item.title}
-          </Text>
-        </View>
-        
-        <View style={styles.itemRight}>
-          {item.hasToggle ? (
-            renderToggle(item.isEnabled || false)
-          ) : (
-            <>
-              {item.value && (
-                <Text style={[styles.itemValue, { color: colors.subText }]}>
-                  {item.value}
-                </Text>
-              )}
-              <IconSymbol name="chevron.right" size={16} color={colors.subText} />
-            </>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderSection = (section: SettingsSection) => (
-    <View key={section.id} style={styles.section}>
+  // Render the Management section with navigation buttons
+  const renderManagementSection = () => (
+    <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: colors.sectionHeader }]}>
-        {section.title}
+        MANAGEMENT
       </Text>
-      <View style={[styles.sectionContent, { backgroundColor: colors.cardBackground }]}>
-        {section.items.map(renderSettingsItem)}
+      <View
+        style={[
+          styles.sectionContent,
+          { backgroundColor: colors.cardBackground },
+        ]}>
+        {/* Categories are hidden as requested */}
+
+        {/* Recurring Expenses Button */}
+        <TouchableOpacity
+          style={[styles.settingsItem, { borderBottomColor: colors.border }]}
+          onPress={() => router.push('/recurring')}>
+          <View style={styles.itemLeft}>
+            <View
+              style={[
+                styles.itemIcon,
+                { backgroundColor: colors.primaryBlue + '20' },
+              ]}>
+              <IconSymbol
+                name='arrow.clockwise'
+                size={20}
+                color={colors.primaryBlue}
+              />
+            </View>
+            <Text style={[styles.itemTitle, { color: colors.text }]}>
+              Recurring Expenses
+            </Text>
+          </View>
+          <View style={styles.itemRight}>
+            <IconSymbol name='chevron.right' size={16} color={colors.subText} />
+          </View>
+        </TouchableOpacity>
+
+        {/* Accounts Button */}
+        <TouchableOpacity
+          style={[styles.settingsItem, { borderBottomWidth: 0 }]}
+          onPress={() => router.push('/(tabs)/accounts')}>
+          <View style={styles.itemLeft}>
+            <View
+              style={[
+                styles.itemIcon,
+                { backgroundColor: colors.primaryBlue + '20' },
+              ]}>
+              <IconSymbol
+                name='building.columns'
+                size={20}
+                color={colors.primaryBlue}
+              />
+            </View>
+            <Text style={[styles.itemTitle, { color: colors.text }]}>
+              Accounts
+            </Text>
+          </View>
+          <View style={styles.itemRight}>
+            <IconSymbol name='chevron.right' size={16} color={colors.subText} />
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // Render the Transaction & General section with functional components
+  const renderTransactionGeneralSection = () => (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.sectionHeader }]}>
+        TRANSACTION & GENERAL
+      </Text>
+      <View
+        style={[
+          styles.sectionContent,
+          { backgroundColor: colors.cardBackground },
+        ]}>
+        {/* Currency Selector */}
+        <CurrencySelector
+          selectedCurrency={currentCurrency}
+          currencies={availableCurrencies}
+          onSelect={updateCurrency}
+          colors={colors}
+        />
+
+        {/* Month Start Date Picker */}
+        <View
+          style={{
+            marginTop: 1,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}>
+          <MonthStartPicker
+            selectedDate={monthStartDate}
+            options={monthStartOptions}
+            onSelect={updateMonthStartDate}
+            colors={colors}
+          />
+        </View>
       </View>
     </View>
   );
@@ -285,15 +153,16 @@ export default function MoreScreen() {
   const renderFooter = () => (
     <View style={styles.footer}>
       <Text style={[styles.footerText, { color: colors.subText }]}>
-        Version 2.4.0 (Build 302)
+        Version 1.0.0
       </Text>
       <View style={styles.footerMade}>
         <Text style={[styles.footerText, { color: colors.subText }]}>
-          Made with 
+          Made with{' '}
         </Text>
-        <IconSymbol name="heart.fill" size={12} color="#E74C3C" />
+        <IconSymbol name='heart.fill' size={12} color='#E74C3C' />
         <Text style={[styles.footerText, { color: colors.subText }]}>
-          {' '}by BudgetApp
+          {' '}
+          by Ghazi Khan
         </Text>
       </View>
     </View>
@@ -303,25 +172,32 @@ export default function MoreScreen() {
     <MainLayout>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {renderHeader()}
-        
-        <ScrollView 
+
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {renderPremiumCard()}
-          {renderOnboardingCard()}
-          
-          {sections.map(renderSection)}
-          
+          showsVerticalScrollIndicator={false}>
+          {/* {renderPremiumCard()} */}
+          {/* {renderOnboardingCard()} */}
+
+          {/* Transaction & General Section - Functional */}
+          {isInitialized && renderTransactionGeneralSection()}
+
+          {/* Management Section - Custom Components */}
+          {renderManagementSection()}
+
+          {/* Other sections */}
+          {/* {renderSection(dataSecuritySection)} */}
+          {/* {renderSection(appInfoSection)} */}
+
           {renderFooter()}
         </ScrollView>
-        
+
         <ExpenseExportModal
           visible={isExportModalVisible}
           onClose={() => setIsExportModalVisible(false)}
         />
-        
+
         <DatabaseBackupModal
           visible={isBackupModalVisible}
           onClose={() => setIsBackupModalVisible(false)}

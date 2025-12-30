@@ -1,18 +1,19 @@
-import MainLayout from '@/components/MainLayout';
-import AccountsManager from '@/components/settings/AccountsManager';
+import RecurringManager from '@/components/settings/RecurringManager';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
-const AccountsScreen: React.FC = () => {
+const RecurringScreen: React.FC = () => {
   const router = useRouter();
-  
+
   const colors = {
     background: '#1A1B1F',
     cardBackground: '#2A2D32',
@@ -32,21 +33,22 @@ const AccountsScreen: React.FC = () => {
       >
         <IconSymbol name="chevron.left" size={20} color={colors.text} />
       </TouchableOpacity>
-      <Text style={[styles.headerTitle, { color: colors.text }]}>Accounts</Text>
+      <Text style={[styles.headerTitle, { color: colors.text }]}>Recurring Expenses</Text>
       <View style={styles.headerSpacer} />
     </View>
   );
 
   return (
-    <MainLayout>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {renderHeader()}
         
         <View style={styles.content}>
-          <AccountsManager colors={colors} />
+          <RecurringManager colors={colors} />
         </View>
       </View>
-    </MainLayout>
+    </SafeAreaView>
   );
 };
 
@@ -79,4 +81,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default AccountsScreen;
+export default RecurringScreen;

@@ -1,7 +1,11 @@
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, lte } from 'drizzle-orm';
 import { getDrizzleDb } from '../config';
 import { expenses, type Expense, type NewExpense } from '../schema/expenses';
-import { recurringExpenses, type NewRecurringExpense, type RecurringExpense } from '../schema/recurringExpenses';
+import {
+  recurringExpenses,
+  type NewRecurringExpense,
+  type RecurringExpense,
+} from '../schema/recurringExpenses';
 
 export type FrequencyType = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -9,13 +13,18 @@ export class RecurringExpenseService {
   /**
    * Create a new recurring expense
    */
-  static async create(recurringExpense: NewRecurringExpense): Promise<RecurringExpense> {
+  static async create(
+    recurringExpense: NewRecurringExpense
+  ): Promise<RecurringExpense> {
     const db = getDrizzleDb();
-    const [newRecurringExpense] = await db.insert(recurringExpenses).values({
-      ...recurringExpense,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }).returning();
+    const [newRecurringExpense] = await db
+      .insert(recurringExpenses)
+      .values({
+        ...recurringExpense,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
     return newRecurringExpense;
   }
 
@@ -24,7 +33,10 @@ export class RecurringExpenseService {
    */
   static async getAll(): Promise<RecurringExpense[]> {
     const db = getDrizzleDb();
-    return await db.select().from(recurringExpenses).orderBy(desc(recurringExpenses.createdAt));
+    return await db
+      .select()
+      .from(recurringExpenses)
+      .orderBy(desc(recurringExpenses.createdAt));
   }
 
   /**
@@ -32,9 +44,27 @@ export class RecurringExpenseService {
    */
   static async getActive(): Promise<RecurringExpense[]> {
     const db = getDrizzleDb();
-    return await db.select()
+    return await db
+      .select()
       .from(recurringExpenses)
       .where(eq(recurringExpenses.isActive, true))
+      .orderBy(desc(recurringExpenses.createdAt));
+  }
+
+  /**
+   * Get unassigned active recurring expenses (not assigned to any budget)
+   */
+  static async getUnassigned(): Promise<RecurringExpense[]> {
+    const db = getDrizzleDb();
+    return await db
+      .select()
+      .from(recurringExpenses)
+      .where(
+        and(
+          eq(recurringExpenses.isActive, true),
+          isNull(recurringExpenses.budgetId)
+        )
+      )
       .orderBy(desc(recurringExpenses.createdAt));
   }
 
@@ -43,7 +73,8 @@ export class RecurringExpenseService {
    */
   static async getByBudgetId(budgetId: string): Promise<RecurringExpense[]> {
     const db = getDrizzleDb();
-    return await db.select()
+    return await db
+      .select()
       .from(recurringExpenses)
       .where(eq(recurringExpenses.budgetId, budgetId))
       .orderBy(desc(recurringExpenses.createdAt));
@@ -54,7 +85,8 @@ export class RecurringExpenseService {
    */
   static async getById(id: string): Promise<RecurringExpense | null> {
     const db = getDrizzleDb();
-    const [recurringExpense] = await db.select()
+    const [recurringExpense] = await db
+      .select()
       .from(recurringExpenses)
       .where(eq(recurringExpenses.id, id))
       .limit(1);
@@ -64,9 +96,13 @@ export class RecurringExpenseService {
   /**
    * Update a recurring expense
    */
-  static async update(id: string, updates: Partial<NewRecurringExpense>): Promise<RecurringExpense | null> {
+  static async update(
+    id: string,
+    updates: Partial<NewRecurringExpense>
+  ): Promise<RecurringExpense | null> {
     const db = getDrizzleDb();
-    const [updatedRecurringExpense] = await db.update(recurringExpenses)
+    const [updatedRecurringExpense] = await db
+      .update(recurringExpenses)
       .set({
         ...updates,
         updatedAt: new Date(),
@@ -81,7 +117,8 @@ export class RecurringExpenseService {
    */
   static async delete(id: string): Promise<boolean> {
     const db = getDrizzleDb();
-    const result = await db.delete(recurringExpenses)
+    const result = await db
+      .delete(recurringExpenses)
       .where(eq(recurringExpenses.id, id));
     return result.changes > 0;
   }
@@ -91,7 +128,8 @@ export class RecurringExpenseService {
    */
   static async deactivate(id: string): Promise<boolean> {
     const db = getDrizzleDb();
-    const [deactivatedRecurringExpense] = await db.update(recurringExpenses)
+    const [deactivatedRecurringExpense] = await db
+      .update(recurringExpenses)
       .set({
         isActive: false,
         updatedAt: new Date(),
@@ -107,7 +145,8 @@ export class RecurringExpenseService {
   static async getDue(): Promise<RecurringExpense[]> {
     const db = getDrizzleDb();
     const now = new Date();
-    return await db.select()
+    return await db
+      .select()
       .from(recurringExpenses)
       .where(
         and(
@@ -121,9 +160,13 @@ export class RecurringExpenseService {
   /**
    * Update next due date for a recurring expense
    */
-  static async updateNextDueDate(id: string, nextDueDate: Date): Promise<boolean> {
+  static async updateNextDueDate(
+    id: string,
+    nextDueDate: Date
+  ): Promise<boolean> {
     const db = getDrizzleDb();
-    const [updatedRecurringExpense] = await db.update(recurringExpenses)
+    const [updatedRecurringExpense] = await db
+      .update(recurringExpenses)
       .set({
         nextDueDate,
         updatedAt: new Date(),
@@ -136,9 +179,12 @@ export class RecurringExpenseService {
   /**
    * Calculate next due date based on frequency
    */
-  static calculateNextDueDate(currentDate: Date, frequency: FrequencyType): Date {
+  static calculateNextDueDate(
+    currentDate: Date,
+    frequency: FrequencyType
+  ): Date {
     const nextDate = new Date(currentDate);
-    
+
     switch (frequency) {
       case 'daily':
         nextDate.setDate(currentDate.getDate() + 1);
@@ -153,7 +199,7 @@ export class RecurringExpenseService {
         nextDate.setFullYear(currentDate.getFullYear() + 1);
         break;
     }
-    
+
     return nextDate;
   }
 
@@ -175,7 +221,7 @@ export class RecurringExpenseService {
         new Date(expense.nextDueDate),
         expense.frequency
       );
-      
+
       await this.updateNextDueDate(expense.id, nextDueDate);
       processedExpenses.push(expense);
     }
@@ -192,7 +238,8 @@ export class RecurringExpenseService {
     const futureDate = new Date();
     futureDate.setDate(now.getDate() + days);
 
-    return await db.select()
+    return await db
+      .select()
       .from(recurringExpenses)
       .where(
         and(
@@ -216,8 +263,9 @@ export class RecurringExpenseService {
   static async getDueForAutoGeneration(): Promise<RecurringExpense[]> {
     const db = getDrizzleDb();
     const now = new Date();
-    
-    return await db.select()
+
+    return await db
+      .select()
       .from(recurringExpenses)
       .where(
         and(
@@ -235,21 +283,22 @@ export class RecurringExpenseService {
    * This prevents duplicate generation within the same recurrence cycle
    */
   static async hasExpenseForCycle(
-    recurringExpenseId: string, 
+    recurringExpenseId: string,
     cycleDate: Date
   ): Promise<boolean> {
     const db = getDrizzleDb();
-    
+
     // Calculate the cycle boundaries based on the cycle date
     const cycleStart = new Date(cycleDate);
     const cycleEnd = new Date(cycleDate);
-    
-    // For simplicity, we check if any expense exists for this recurring expense 
+
+    // For simplicity, we check if any expense exists for this recurring expense
     // within a reasonable time window around the cycle date (±24 hours)
     cycleStart.setHours(0, 0, 0, 0);
     cycleEnd.setHours(23, 59, 59, 999);
-    
-    const existingExpenses = await db.select()
+
+    const existingExpenses = await db
+      .select()
       .from(expenses)
       .where(
         and(
@@ -259,14 +308,14 @@ export class RecurringExpenseService {
         )
       )
       .limit(1);
-    
+
     return existingExpenses.length > 0;
   }
 
   /**
    * Auto-generate expenses from due recurring expenses
    * Returns list of newly created expenses
-   * 
+   *
    * Rules:
    * - Only generate if auto_add = true
    * - Generate once per recurrence cycle
@@ -277,24 +326,36 @@ export class RecurringExpenseService {
   static async autoGenerateExpenses(): Promise<Expense[]> {
     const db = getDrizzleDb();
     const generatedExpenses: Expense[] = [];
-    
+
     // Get all recurring expenses due for auto-generation
     const dueRecurringExpenses = await this.getDueForAutoGeneration();
-    
+
     if (dueRecurringExpenses.length === 0) {
       return generatedExpenses;
     }
-    
+
     // Process each recurring expense in a transaction
     return await db.transaction(async (tx) => {
       const transactionExpenses: Expense[] = [];
-      
+
       for (const recurringExpense of dueRecurringExpenses) {
         try {
+          // Skip if no budget is assigned
+          if (!recurringExpense.budgetId) {
+            console.log(
+              `Skipping auto-generation for "${recurringExpense.name}" - no budget assigned`
+            );
+            continue;
+          }
+
           // Check if end date has passed
-          if (recurringExpense.endDate && new Date() > new Date(recurringExpense.endDate)) {
+          if (
+            recurringExpense.endDate &&
+            new Date() > new Date(recurringExpense.endDate)
+          ) {
             // Deactivate expired recurring expense
-            await tx.update(recurringExpenses)
+            await tx
+              .update(recurringExpenses)
               .set({
                 isActive: false,
                 updatedAt: new Date(),
@@ -302,21 +363,22 @@ export class RecurringExpenseService {
               .where(eq(recurringExpenses.id, recurringExpense.id));
             continue;
           }
-          
+
           // Check if expense already generated for this cycle
           const alreadyGenerated = await this.hasExpenseForCycle(
             recurringExpense.id,
             new Date(recurringExpense.nextDueDate)
           );
-          
+
           if (alreadyGenerated) {
             // Just update the next due date without generating
             const nextDueDate = this.calculateNextDueDate(
               new Date(recurringExpense.nextDueDate),
               recurringExpense.frequency
             );
-            
-            await tx.update(recurringExpenses)
+
+            await tx
+              .update(recurringExpenses)
               .set({
                 nextDueDate,
                 updatedAt: new Date(),
@@ -324,10 +386,10 @@ export class RecurringExpenseService {
               .where(eq(recurringExpenses.id, recurringExpense.id));
             continue;
           }
-          
+
           // Generate the expense
           const newExpenseData: NewExpense = {
-            budgetId: recurringExpense.budgetId,
+            budgetId: recurringExpense.budgetId!, // We know it's not null due to the check above
             accountId: recurringExpense.accountId,
             categoryId: recurringExpense.categoryId,
             amount: recurringExpense.amount,
@@ -338,36 +400,40 @@ export class RecurringExpenseService {
             recurringExpenseId: recurringExpense.id,
             notes: recurringExpense.description,
           };
-          
-          const [generatedExpense] = await tx.insert(expenses)
+
+          const [generatedExpense] = await tx
+            .insert(expenses)
             .values({
               ...newExpenseData,
               createdAt: new Date(),
               updatedAt: new Date(),
             })
             .returning();
-          
+
           transactionExpenses.push(generatedExpense);
-          
+
           // Update next due date for the recurring expense
           const nextDueDate = this.calculateNextDueDate(
             new Date(recurringExpense.nextDueDate),
             recurringExpense.frequency
           );
-          
-          await tx.update(recurringExpenses)
+
+          await tx
+            .update(recurringExpenses)
             .set({
               nextDueDate,
               updatedAt: new Date(),
             })
             .where(eq(recurringExpenses.id, recurringExpense.id));
-          
         } catch (error) {
-          console.error(`Failed to generate expense for recurring expense ${recurringExpense.id}:`, error);
+          console.error(
+            `Failed to generate expense for recurring expense ${recurringExpense.id}:`,
+            error
+          );
           // Continue with next recurring expense rather than failing the entire transaction
         }
       }
-      
+
       return transactionExpenses;
     });
   }
@@ -377,7 +443,8 @@ export class RecurringExpenseService {
    */
   static async enableAutoGeneration(id: string): Promise<boolean> {
     const db = getDrizzleDb();
-    const [updated] = await db.update(recurringExpenses)
+    const [updated] = await db
+      .update(recurringExpenses)
       .set({
         autoAdd: true,
         updatedAt: new Date(),
@@ -392,7 +459,8 @@ export class RecurringExpenseService {
    */
   static async disableAutoGeneration(id: string): Promise<boolean> {
     const db = getDrizzleDb();
-    const [updated] = await db.update(recurringExpenses)
+    const [updated] = await db
+      .update(recurringExpenses)
       .set({
         autoAdd: false,
         updatedAt: new Date(),
@@ -405,9 +473,12 @@ export class RecurringExpenseService {
   /**
    * Get all auto-generated expenses for a specific recurring expense
    */
-  static async getGeneratedExpenses(recurringExpenseId: string): Promise<Expense[]> {
+  static async getGeneratedExpenses(
+    recurringExpenseId: string
+  ): Promise<Expense[]> {
     const db = getDrizzleDb();
-    return await db.select()
+    return await db
+      .select()
       .from(expenses)
       .where(
         and(
