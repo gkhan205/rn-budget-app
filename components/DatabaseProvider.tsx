@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useDatabase } from '../hooks/useDatabase';
+import { useSettingsStore } from '../state/settingsStore';
 
 interface DatabaseProviderProps {
   children: React.ReactNode;
@@ -11,8 +12,20 @@ interface DatabaseProviderProps {
  * TODO: Update for SQLite implementation
  * Currently shows a placeholder message since database is not implemented
  */
-export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) => {
+export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({
+  children,
+}) => {
   const { isInitialized, error } = useDatabase();
+  const initializeSettings = useSettingsStore(
+    (state) => state.initializeSettings
+  );
+
+  // Initialize settings when database is ready
+  React.useEffect(() => {
+    if (isInitialized) {
+      initializeSettings();
+    }
+  }, [isInitialized, initializeSettings]);
 
   if (error) {
     return (
@@ -31,15 +44,17 @@ export const DatabaseProvider: React.FC<DatabaseProviderProps> = ({ children }) 
   if (!isInitialized) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size='large' color='#007AFF' />
         <Text style={styles.loadingText}>Setting up database...</Text>
       </View>
     );
   }
 
   // TODO: Remove this message when SQLite is implemented
-  console.log('DatabaseProvider: Database not implemented yet - using placeholder');
-  
+  console.log(
+    'DatabaseProvider: Database not implemented yet - using placeholder'
+  );
+
   return <>{children}</>;
 };
 

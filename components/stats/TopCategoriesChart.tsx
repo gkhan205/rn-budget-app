@@ -1,4 +1,5 @@
 import type { CategorySpendingStats } from '@/db/services/statsService';
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -15,15 +16,13 @@ const TopCategoriesChart: React.FC<TopCategoriesChartProps> = ({
   selectedTab,
   getCategoryColors,
 }) => {
+  const { formatShort } = useCurrencyFormatter();
   const topCategories = categoryStats.slice(0, 5); // Show top 5 categories
-  const totalAmount = topCategories.reduce((sum, cat) => sum + cat.totalAmount, 0);
+  const totalAmount = topCategories.reduce(
+    (sum, cat) => sum + cat.totalAmount,
+    0
+  );
   const categoryColors = getCategoryColors();
-
-  const formatAmount = (amount: number) => {
-    return amount > 1000 
-      ? `${(amount / 1000).toFixed(1)}k` 
-      : amount.toFixed(0);
-  };
 
   const getChartTitle = () => {
     return selectedTab === 'Income' ? 'Top Income Sources' : 'Top Categories';
@@ -35,26 +34,26 @@ const TopCategoriesChart: React.FC<TopCategoriesChartProps> = ({
         {/* Outer ring with segments */}
         <View style={[styles.donutRing, { borderColor: colors.border }]}>
           {topCategories.slice(0, 4).map((_, index) => (
-            <View 
+            <View
               key={index}
               style={[
-                styles.donutSegment, 
-                { 
-                  borderTopColor: categoryColors[index], 
-                  transform: [{ rotate: `${index * 90}deg` }] 
-                }
-              ]} 
+                styles.donutSegment,
+                {
+                  borderTopColor: categoryColors[index],
+                  transform: [{ rotate: `${index * 90}deg` }],
+                },
+              ]}
             />
           ))}
         </View>
-        
+
         {/* Center text */}
         <View style={styles.donutCenter}>
           <Text style={[styles.donutLabel, { color: colors.subText }]}>
             Total
           </Text>
           <Text style={[styles.donutValue, { color: colors.text }]}>
-            ${formatAmount(totalAmount)}
+            {formatShort(totalAmount)}
           </Text>
         </View>
       </View>
@@ -64,33 +63,38 @@ const TopCategoriesChart: React.FC<TopCategoriesChartProps> = ({
   const renderCategoriesList = () => (
     <View style={styles.categoriesList}>
       {topCategories.map((category, index) => {
-        const percentage = totalAmount > 0 
-          ? Math.round((category.totalAmount / totalAmount) * 100) 
-          : 0;
-        
+        const percentage =
+          totalAmount > 0
+            ? Math.round((category.totalAmount / totalAmount) * 100)
+            : 0;
+
         return (
           <View key={category.category} style={styles.categoryItem}>
             <View style={styles.categoryInfo}>
-              <View style={[
-                styles.categoryDot, 
-                { backgroundColor: categoryColors[index] }
-              ]} />
+              <View
+                style={[
+                  styles.categoryDot,
+                  { backgroundColor: categoryColors[index] },
+                ]}
+              />
               <Text style={[styles.categoryName, { color: colors.text }]}>
-                {category.category || (selectedTab === 'Income' ? 'Other Income' : 'Uncategorized')}
+                {category.category ||
+                  (selectedTab === 'Income' ? 'Other Income' : 'Uncategorized')}
               </Text>
             </View>
             <View style={styles.categoryValues}>
               <Text style={[styles.categoryAmount, { color: colors.text }]}>
-                ${category.totalAmount.toFixed(0)}
+                {formatShort(category.totalAmount)}
               </Text>
-              <Text style={[styles.categoryPercentage, { color: colors.subText }]}>
+              <Text
+                style={[styles.categoryPercentage, { color: colors.subText }]}>
                 {percentage}%
               </Text>
             </View>
           </View>
         );
       })}
-      
+
       {topCategories.length === 0 && (
         <View style={styles.categoryItem}>
           <Text style={[styles.categoryName, { color: colors.subText }]}>
@@ -106,7 +110,7 @@ const TopCategoriesChart: React.FC<TopCategoriesChartProps> = ({
       <Text style={[styles.sectionTitle, { color: colors.text }]}>
         {getChartTitle()}
       </Text>
-      
+
       {renderDonutChart()}
       {renderCategoriesList()}
     </View>

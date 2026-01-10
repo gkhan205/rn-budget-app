@@ -1,12 +1,8 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useCurrencyFormatter } from '@/hooks';
 import type { RecurringExpense } from '@/hooks/useBudgetForm';
 import React from 'react';
-import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface RecurringExpenseListProps {
   expenses: RecurringExpense[];
@@ -23,6 +19,8 @@ export const RecurringExpenseList: React.FC<RecurringExpenseListProps> = ({
   onDelete,
   colors,
 }) => {
+  const { format } = useCurrencyFormatter();
+
   if (expenses.length === 0) {
     return null;
   }
@@ -43,13 +41,12 @@ export const RecurringExpenseList: React.FC<RecurringExpenseListProps> = ({
           </View>
           <View style={styles.expenseActions}>
             <Text style={[styles.expenseAmount, { color: colors.text }]}>
-              ${expense.amount.toFixed(2)}
+              {format(expense.amount)}
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => onDelete(expense.id)}
-              style={styles.deleteButton}
-            >
-              <IconSymbol name="trash" size={12} color={colors.error} />
+              style={styles.deleteButton}>
+              <IconSymbol name='trash' size={12} color={colors.error} />
             </TouchableOpacity>
           </View>
         </View>

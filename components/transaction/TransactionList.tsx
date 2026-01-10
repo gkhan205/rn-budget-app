@@ -1,4 +1,8 @@
-import type { TransactionGroup, TransactionItem } from '@/hooks/useTransactions';
+import { useCurrencyFormatter } from '@/hooks';
+import type {
+  TransactionGroup,
+  TransactionItem,
+} from '@/hooks/useTransactions';
 import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { IconSymbol } from '../ui/icon-symbol';
@@ -25,18 +29,19 @@ const TransactionList: React.FC<TransactionListProps> = ({
   onDeleteTransaction,
   colors,
 }) => {
+  const { format } = useCurrencyFormatter();
+
   const renderTransactionGroup = ({ item }: { item: TransactionGroup }) => (
     <View style={styles.transactionGroup}>
       <View style={styles.dateHeader}>
-        <Text style={[styles.dateText, { color: colors.text }]}>{item.displayDate}</Text>
-        <Text style={[
-          styles.dateAmount, 
-          { color: colors.subText }
-        ]}>
-           ${Math.abs(item.totalAmount).toFixed(2)}
+        <Text style={[styles.dateText, { color: colors.text }]}>
+          {item.displayDate}
+        </Text>
+        <Text style={[styles.dateAmount, { color: colors.subText }]}>
+          {format(item.totalAmount)}
         </Text>
       </View>
-      
+
       {item.transactions.map((transaction) => (
         <SwipeableTransactionItem
           key={transaction.id}
@@ -52,10 +57,13 @@ const TransactionList: React.FC<TransactionListProps> = ({
   if (transactionGroups.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <IconSymbol name="creditcard" size={48} color={colors.subText} />
-        <Text style={[styles.emptyTitle, { color: colors.text }]}>No Transactions</Text>
+        <IconSymbol name='creditcard' size={48} color={colors.subText} />
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>
+          No Transactions
+        </Text>
         <Text style={[styles.emptySubtitle, { color: colors.subText }]}>
-          Add your first transaction by tapping the + button below or try adjusting your filters.
+          Add your first transaction by tapping the + button below or try
+          adjusting your filters.
         </Text>
       </View>
     );

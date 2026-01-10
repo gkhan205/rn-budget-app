@@ -8,6 +8,7 @@ export interface Currency {
   symbol: string;
   name: string;
   country: string;
+  locale: string;
 }
 
 // Settings data interface
@@ -60,36 +61,216 @@ export interface SettingsStore extends SettingsState, SettingsActions {}
 
 // Popular currencies list
 export const CURRENCIES: Currency[] = [
-  { code: 'INR', symbol: '₹', name: 'Indian Rupee', country: 'India' },
-  { code: 'USD', symbol: '$', name: 'US Dollar', country: 'United States' },
-  { code: 'EUR', symbol: '€', name: 'Euro', country: 'European Union' },
-  { code: 'GBP', symbol: '£', name: 'British Pound', country: 'United Kingdom' },
-  { code: 'JPY', symbol: '¥', name: 'Japanese Yen', country: 'Japan' },
-  { code: 'CNY', symbol: '¥', name: 'Chinese Yuan', country: 'China' },
-  { code: 'CAD', symbol: 'C$', name: 'Canadian Dollar', country: 'Canada' },
-  { code: 'AUD', symbol: 'A$', name: 'Australian Dollar', country: 'Australia' },
-  { code: 'CHF', symbol: 'Fr', name: 'Swiss Franc', country: 'Switzerland' },
-  { code: 'SGD', symbol: 'S$', name: 'Singapore Dollar', country: 'Singapore' },
-  { code: 'HKD', symbol: 'HK$', name: 'Hong Kong Dollar', country: 'Hong Kong' },
-  { code: 'SEK', symbol: 'kr', name: 'Swedish Krona', country: 'Sweden' },
-  { code: 'NOK', symbol: 'kr', name: 'Norwegian Krone', country: 'Norway' },
-  { code: 'DKK', symbol: 'kr', name: 'Danish Krone', country: 'Denmark' },
-  { code: 'PLN', symbol: 'zł', name: 'Polish Złoty', country: 'Poland' },
-  { code: 'CZK', symbol: 'Kč', name: 'Czech Koruna', country: 'Czech Republic' },
-  { code: 'HUF', symbol: 'Ft', name: 'Hungarian Forint', country: 'Hungary' },
-  { code: 'RUB', symbol: '₽', name: 'Russian Ruble', country: 'Russia' },
-  { code: 'BRL', symbol: 'R$', name: 'Brazilian Real', country: 'Brazil' },
-  { code: 'MXN', symbol: '$', name: 'Mexican Peso', country: 'Mexico' },
-  { code: 'KRW', symbol: '₩', name: 'South Korean Won', country: 'South Korea' },
-  { code: 'THB', symbol: '฿', name: 'Thai Baht', country: 'Thailand' },
-  { code: 'MYR', symbol: 'RM', name: 'Malaysian Ringgit', country: 'Malaysia' },
-  { code: 'IDR', symbol: 'Rp', name: 'Indonesian Rupiah', country: 'Indonesia' },
-  { code: 'PHP', symbol: '₱', name: 'Philippine Peso', country: 'Philippines' },
-  { code: 'VND', symbol: '₫', name: 'Vietnamese Dong', country: 'Vietnam' },
-  { code: 'AED', symbol: 'د.إ', name: 'UAE Dirham', country: 'United Arab Emirates' },
-  { code: 'SAR', symbol: '﷼', name: 'Saudi Riyal', country: 'Saudi Arabia' },
-  { code: 'ZAR', symbol: 'R', name: 'South African Rand', country: 'South Africa' },
-  { code: 'EGP', symbol: '£', name: 'Egyptian Pound', country: 'Egypt' },
+  {
+    code: 'INR',
+    symbol: '₹',
+    name: 'Indian Rupee',
+    country: 'India',
+    locale: 'en-IN',
+  },
+  {
+    code: 'USD',
+    symbol: '$',
+    name: 'US Dollar',
+    country: 'United States',
+    locale: 'en-US',
+  },
+  {
+    code: 'EUR',
+    symbol: '€',
+    name: 'Euro',
+    country: 'European Union',
+    locale: 'de-DE',
+  },
+  {
+    code: 'GBP',
+    symbol: '£',
+    name: 'British Pound',
+    country: 'United Kingdom',
+    locale: 'en-GB',
+  },
+  {
+    code: 'JPY',
+    symbol: '¥',
+    name: 'Japanese Yen',
+    country: 'Japan',
+    locale: 'ja-JP',
+  },
+  {
+    code: 'CNY',
+    symbol: '¥',
+    name: 'Chinese Yuan',
+    country: 'China',
+    locale: 'zh-CN',
+  },
+  {
+    code: 'CAD',
+    symbol: 'C$',
+    name: 'Canadian Dollar',
+    country: 'Canada',
+    locale: 'en-CA',
+  },
+  {
+    code: 'AUD',
+    symbol: 'A$',
+    name: 'Australian Dollar',
+    country: 'Australia',
+    locale: 'en-AU',
+  },
+  {
+    code: 'CHF',
+    symbol: 'Fr',
+    name: 'Swiss Franc',
+    country: 'Switzerland',
+    locale: 'de-CH',
+  },
+  {
+    code: 'SGD',
+    symbol: 'S$',
+    name: 'Singapore Dollar',
+    country: 'Singapore',
+    locale: 'en-SG',
+  },
+  {
+    code: 'HKD',
+    symbol: 'HK$',
+    name: 'Hong Kong Dollar',
+    country: 'Hong Kong',
+    locale: 'en-HK',
+  },
+  {
+    code: 'SEK',
+    symbol: 'kr',
+    name: 'Swedish Krona',
+    country: 'Sweden',
+    locale: 'sv-SE',
+  },
+  {
+    code: 'NOK',
+    symbol: 'kr',
+    name: 'Norwegian Krone',
+    country: 'Norway',
+    locale: 'nb-NO',
+  },
+  {
+    code: 'DKK',
+    symbol: 'kr',
+    name: 'Danish Krone',
+    country: 'Denmark',
+    locale: 'da-DK',
+  },
+  {
+    code: 'PLN',
+    symbol: 'zł',
+    name: 'Polish Złoty',
+    country: 'Poland',
+    locale: 'pl-PL',
+  },
+  {
+    code: 'CZK',
+    symbol: 'Kč',
+    name: 'Czech Koruna',
+    country: 'Czech Republic',
+    locale: 'cs-CZ',
+  },
+  {
+    code: 'HUF',
+    symbol: 'Ft',
+    name: 'Hungarian Forint',
+    country: 'Hungary',
+    locale: 'hu-HU',
+  },
+  {
+    code: 'RUB',
+    symbol: '₽',
+    name: 'Russian Ruble',
+    country: 'Russia',
+    locale: 'ru-RU',
+  },
+  {
+    code: 'BRL',
+    symbol: 'R$',
+    name: 'Brazilian Real',
+    country: 'Brazil',
+    locale: 'pt-BR',
+  },
+  {
+    code: 'MXN',
+    symbol: '$',
+    name: 'Mexican Peso',
+    country: 'Mexico',
+    locale: 'es-MX',
+  },
+  {
+    code: 'KRW',
+    symbol: '₩',
+    name: 'South Korean Won',
+    country: 'South Korea',
+    locale: 'ko-KR',
+  },
+  {
+    code: 'THB',
+    symbol: '฿',
+    name: 'Thai Baht',
+    country: 'Thailand',
+    locale: 'th-TH',
+  },
+  {
+    code: 'MYR',
+    symbol: 'RM',
+    name: 'Malaysian Ringgit',
+    country: 'Malaysia',
+    locale: 'ms-MY',
+  },
+  {
+    code: 'IDR',
+    symbol: 'Rp',
+    name: 'Indonesian Rupiah',
+    country: 'Indonesia',
+    locale: 'id-ID',
+  },
+  {
+    code: 'PHP',
+    symbol: '₱',
+    name: 'Philippine Peso',
+    country: 'Philippines',
+    locale: 'en-PH',
+  },
+  {
+    code: 'VND',
+    symbol: '₫',
+    name: 'Vietnamese Dong',
+    country: 'Vietnam',
+    locale: 'vi-VN',
+  },
+  {
+    code: 'AED',
+    symbol: 'د.إ',
+    name: 'UAE Dirham',
+    country: 'United Arab Emirates',
+    locale: 'ar-AE',
+  },
+  {
+    code: 'SAR',
+    symbol: '﷼',
+    name: 'Saudi Riyal',
+    country: 'Saudi Arabia',
+    locale: 'ar-SA',
+  },
+  {
+    code: 'ZAR',
+    symbol: 'R',
+    name: 'South African Rand',
+    country: 'South Africa',
+    locale: 'en-ZA',
+  },
+  {
+    code: 'EGP',
+    symbol: '£',
+    name: 'Egyptian Pound',
+    country: 'Egypt',
+    locale: 'ar-EG',
+  },
 ];
 
 // Default settings
@@ -107,7 +288,7 @@ const DEFAULT_SETTINGS: SettingsData = {
 
 // Helper function to get currency by code
 export const getCurrencyByCode = (code: string): Currency | undefined => {
-  return CURRENCIES.find(currency => currency.code === code);
+  return CURRENCIES.find((currency) => currency.code === code);
 };
 
 // Helper function to generate month start dates (1-28 to avoid month-end issues)
@@ -200,25 +381,25 @@ export const useSettingsStore = create<SettingsStore>()(
 
 // Convenience hooks for common selections
 export const useCurrentCurrency = () => {
-  return useSettingsStore(state => state.getCurrency());
+  return useSettingsStore((state) => state.getCurrency());
 };
 
 export const useMonthStartDate = () => {
-  return useSettingsStore(state => state.getMonthStartDate());
+  return useSettingsStore((state) => state.getMonthStartDate());
 };
 
 export const useTheme = () => {
-  return useSettingsStore(state => state.getTheme());
+  return useSettingsStore((state) => state.getTheme());
 };
 
 export const useAppLock = () => {
-  return useSettingsStore(state => state.getAppLock());
+  return useSettingsStore((state) => state.getAppLock());
 };
 
 export const useSettingsLoading = () => {
-  return useSettingsStore(state => state.isLoading);
+  return useSettingsStore((state) => state.isLoading);
 };
 
 export const useSettingsInitialized = () => {
-  return useSettingsStore(state => state.isInitialized);
+  return useSettingsStore((state) => state.isInitialized);
 };

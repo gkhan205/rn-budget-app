@@ -43,6 +43,13 @@
       "when": 1767102808152,
       "tag": "0005_peaceful_zarek",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1768069543975,
+      "tag": "0006_volatile_abomination",
+      "breakpoints": true
     }
   ]
 }

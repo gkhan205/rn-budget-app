@@ -35,13 +35,15 @@ interface Category {
 const AddTransactionScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  
+
   // Check if we're in edit mode
   const isEditMode = params.editMode === 'true';
   const transactionId = params.transactionId as string;
-  
+
   // Form state
-  const [transactionType, setTransactionType] = useState<'Expense' | 'Income' | 'Transfer'>('Expense');
+  const [transactionType, setTransactionType] = useState<
+    'Expense' | 'Income' | 'Transfer'
+  >('Expense');
   const [amount, setAmount] = useState('0');
   const [description, setDescription] = useState('');
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
@@ -50,12 +52,13 @@ const AddTransactionScreen: React.FC = () => {
     id: '1',
     name: 'Food',
     icon: '🍔',
-    color: '#4A9EFF'
+    color: '#4A9EFF',
   });
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [isKeypadVisible, setIsKeypadVisible] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   // Data state
   const [budgets, setBudgets] = useState<Budget[]>([]);
@@ -106,7 +109,6 @@ const AddTransactionScreen: React.FC = () => {
       if (budgetsData.length > 0 && !selectedBudget) {
         setSelectedBudget(budgetsData[0]);
       }
-
     } catch (err) {
       console.error('Failed to load data:', err);
       setError('Failed to load budgets and accounts');
@@ -131,36 +133,38 @@ const AddTransactionScreen: React.FC = () => {
           let expenseTransaction = await ExpenseService.getById(transactionId);
           let incomeTransaction = null;
           let isIncomeTransaction = false;
-          
+
           if (!expenseTransaction) {
             // Try loading as income
             incomeTransaction = await IncomeService.getById(transactionId);
             isIncomeTransaction = true;
           }
-          
+
           const transaction = expenseTransaction || incomeTransaction;
-          
+
           if (transaction) {
             // Set amount as absolute value for the input field
             setAmount(Math.abs(transaction.amount).toString());
             setDescription(transaction.description || '');
-            
+
             // Find and set the correct budget
             if (transaction.budgetId && budgets.length > 0) {
-              const budget = budgets.find(b => b.id === transaction.budgetId);
+              const budget = budgets.find((b) => b.id === transaction.budgetId);
               if (budget) {
                 setSelectedBudget(budget);
               }
             }
-            
-            // Find and set the correct account  
+
+            // Find and set the correct account
             if (transaction.accountId && accounts.length > 0) {
-              const account = accounts.find(a => a.id === transaction.accountId);
+              const account = accounts.find(
+                (a) => a.id === transaction.accountId
+              );
               if (account) {
                 setSelectedAccount(account);
               }
             }
-            
+
             // Set transaction type based on the table it came from
             if (isIncomeTransaction) {
               setTransactionType('Income');
@@ -172,12 +176,12 @@ const AddTransactionScreen: React.FC = () => {
                 setTransactionType('Income');
               }
             }
-            
+
             // Set date
             if (transaction.date) {
               setSelectedDate(new Date(transaction.date));
             }
-            
+
             // Set category if available (only for expenses)
             if (!isIncomeTransaction && expenseTransaction?.category) {
               // Create a simple category object from the stored string
@@ -185,7 +189,7 @@ const AddTransactionScreen: React.FC = () => {
                 id: expenseTransaction.category,
                 name: expenseTransaction.category,
                 icon: '💰', // Default icon
-                color: '#007AFF' // Default color
+                color: '#007AFF', // Default color
               });
             }
           }
@@ -223,7 +227,7 @@ const AddTransactionScreen: React.FC = () => {
 
     try {
       setIsSaving(true);
-      
+
       if (transactionType === 'Income') {
         // Handle income transactions
         const incomeData = {
@@ -244,29 +248,28 @@ const AddTransactionScreen: React.FC = () => {
           // First, try to find and delete the old transaction
           const oldExpense = await ExpenseService.getById(transactionId);
           const oldIncome = await IncomeService.getById(transactionId);
-          
+
           if (oldExpense) {
             // Delete old expense record
             await ExpenseService.delete(transactionId);
             // If it was an expense but user selected income, we'll create new income
           }
-          
+
           if (oldIncome) {
             // Delete old income record
             await IncomeService.delete(transactionId);
             // Remove the old income from budget
             await BudgetService.addIncome(selectedBudget.id, -oldIncome.amount);
           }
-          
+
           // Create new income
           await IncomeService.create(incomeData);
         } else {
           await IncomeService.create(incomeData);
         }
-        
+
         // Add income to budget
         await BudgetService.addIncome(selectedBudget.id, amountValue);
-        
       } else {
         // Handle expense and transfer transactions
         const expenseData = {
@@ -287,14 +290,14 @@ const AddTransactionScreen: React.FC = () => {
           // For edit mode, handle transaction type changes
           const oldExpense = await ExpenseService.getById(transactionId);
           const oldIncome = await IncomeService.getById(transactionId);
-          
+
           if (oldIncome) {
             // Remove old income from budget first
             await BudgetService.addIncome(selectedBudget.id, -oldIncome.amount);
             // Delete old income record
             await IncomeService.delete(transactionId);
           }
-          
+
           if (oldExpense) {
             // Update existing expense
             await ExpenseService.update(transactionId, expenseData);
@@ -308,13 +311,19 @@ const AddTransactionScreen: React.FC = () => {
         }
       }
 
-      Alert.alert('Success', `Transaction ${isEditMode ? 'updated' : 'added'} successfully`, [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
-
+      Alert.alert(
+        'Success',
+        `Transaction ${isEditMode ? 'updated' : 'added'} successfully`,
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } catch (err) {
       console.error('Failed to save transaction:', err);
-      Alert.alert('Error', `Failed to ${isEditMode ? 'update' : 'save'} transaction. Please try again.`);
+      Alert.alert(
+        'Error',
+        `Failed to ${
+          isEditMode ? 'update' : 'save'
+        } transaction. Please try again.`
+      );
     } finally {
       setIsSaving(false);
     }
@@ -340,16 +349,19 @@ const AddTransactionScreen: React.FC = () => {
   const renderHeader = () => (
     <View style={[styles.header, { borderBottomColor: colors.border }]}>
       <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-        <IconSymbol name="xmark" size={20} color={colors.text} />
+        <IconSymbol name='xmark' size={20} color={colors.text} />
       </TouchableOpacity>
-      
+
       <Text style={[styles.headerTitle, { color: colors.text }]}>
         {isEditMode ? 'Edit Transaction' : 'Add Transaction'}
       </Text>
-      
-      <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={isSaving}>
+
+      <TouchableOpacity
+        onPress={handleSave}
+        style={styles.saveButton}
+        disabled={isSaving}>
         {isSaving ? (
-          <ActivityIndicator size="small" color={colors.primaryBlue} />
+          <ActivityIndicator size='small' color={colors.primaryBlue} />
         ) : (
           <Text style={[styles.saveText, { color: colors.primaryBlue }]}>
             {isEditMode ? 'Update' : 'Save'}
@@ -367,16 +379,19 @@ const AddTransactionScreen: React.FC = () => {
           style={[
             styles.typeButton,
             {
-              backgroundColor: transactionType === type ? colors.primaryBlue : colors.cardBackground,
+              backgroundColor:
+                transactionType === type
+                  ? colors.primaryBlue
+                  : colors.cardBackground,
               borderColor: colors.border,
-            }
+            },
           ]}
-          onPress={() => setTransactionType(type)}
-        >
-          <Text style={[
-            styles.typeText,
-            { color: transactionType === type ? '#FFFFFF' : colors.subText }
-          ]}>
+          onPress={() => setTransactionType(type)}>
+          <Text
+            style={[
+              styles.typeText,
+              { color: transactionType === type ? '#FFFFFF' : colors.subText },
+            ]}>
             {type}
           </Text>
         </TouchableOpacity>
@@ -385,11 +400,10 @@ const AddTransactionScreen: React.FC = () => {
   );
 
   const renderAmountInput = () => (
-    <TouchableOpacity 
-      style={styles.amountSection} 
+    <TouchableOpacity
+      style={styles.amountSection}
       onPress={() => setIsKeypadVisible(true)}
-      activeOpacity={0.7}
-    >
+      activeOpacity={0.7}>
       <Text style={[styles.amountValue, { color: colors.text }]}>{amount}</Text>
       <Text style={[styles.currencyLabel, { color: colors.subText }]}>
         {isKeypadVisible ? 'USD - US Dollar' : 'Tap to edit • USD - US Dollar'}
@@ -398,70 +412,106 @@ const AddTransactionScreen: React.FC = () => {
   );
 
   const renderBudgetSelector = () => (
-    <TouchableOpacity 
-      style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+    <TouchableOpacity
+      style={[
+        styles.inputSection,
+        { backgroundColor: colors.cardBackground, borderColor: colors.border },
+      ]}
       onPress={() => {
         // Simple budget cycling for now - in a real app this would be a modal
         if (budgets.length > 0) {
-          const currentIndex = selectedBudget ? budgets.findIndex(b => b.id === selectedBudget.id) : -1;
+          const currentIndex = selectedBudget
+            ? budgets.findIndex((b) => b.id === selectedBudget.id)
+            : -1;
           const nextIndex = (currentIndex + 1) % budgets.length;
           setSelectedBudget(budgets[nextIndex]);
         }
-      }}
-    >
+      }}>
       <View style={styles.inputRow}>
-        <IconSymbol name="folder.fill" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <IconSymbol
+          name='folder.fill'
+          size={20}
+          color={colors.primaryBlue}
+          style={styles.inputIcon}
+        />
         <View style={styles.inputContent}>
-          <Text style={[styles.inputLabel, { color: colors.text }]}>Budget *</Text>
-          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>Which budget is this for?</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>
+            Budget *
+          </Text>
+          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>
+            Which budget is this for?
+          </Text>
         </View>
         <View style={styles.inputValueContainer}>
-          <Text style={[styles.inputValue, { color: selectedBudget ? colors.text : colors.subText }]}>
+          <Text
+            style={[
+              styles.inputValue,
+              { color: selectedBudget ? colors.text : colors.subText },
+            ]}>
             {selectedBudget ? selectedBudget.name : 'Select Budget'}
           </Text>
-          <IconSymbol name="chevron.right" size={16} color={colors.subText} />
+          <IconSymbol name='chevron.right' size={16} color={colors.subText} />
         </View>
       </View>
     </TouchableOpacity>
   );
 
   const renderAccountSelector = () => (
-    <TouchableOpacity 
-      style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-      onPress={() => {
-        // Simple account cycling for now - in a real app this would be a modal
-        if (accounts.length > 0) {
-          const currentIndex = selectedAccount ? accounts.findIndex(a => a.id === selectedAccount.id) : -1;
-          const nextIndex = currentIndex >= accounts.length - 1 ? -1 : currentIndex + 1;
-          setSelectedAccount(nextIndex === -1 ? null : accounts[nextIndex]);
-        }
-      }}
-    >
+    <TouchableOpacity
+      style={[
+        styles.inputSection,
+        { backgroundColor: colors.cardBackground, borderColor: colors.border },
+      ]}
+      onPress={() => setShowAccountModal(true)}>
       <View style={styles.inputRow}>
-        <IconSymbol name="creditcard.fill" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <IconSymbol
+          name='creditcard.fill'
+          size={20}
+          color={colors.primaryBlue}
+          style={styles.inputIcon}
+        />
         <View style={styles.inputContent}>
-          <Text style={[styles.inputLabel, { color: colors.text }]}>Account</Text>
-          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>Optional - which account to track?</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>
+            Account
+          </Text>
+          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>
+            Optional - which account to track?
+          </Text>
         </View>
         <View style={styles.inputValueContainer}>
-          <Text style={[styles.inputValue, { color: selectedAccount ? colors.text : colors.subText }]}>
+          <Text
+            style={[
+              styles.inputValue,
+              { color: selectedAccount ? colors.text : colors.subText },
+            ]}>
             {selectedAccount ? selectedAccount.name : 'No Account'}
           </Text>
-          <IconSymbol name="chevron.right" size={16} color={colors.subText} />
+          <IconSymbol name='chevron.right' size={16} color={colors.subText} />
         </View>
       </View>
     </TouchableOpacity>
   );
 
   const renderDescriptionInput = () => (
-    <View style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+    <View
+      style={[
+        styles.inputSection,
+        { backgroundColor: colors.cardBackground, borderColor: colors.border },
+      ]}>
       <View style={styles.inputRow}>
-        <IconSymbol name="text.alignleft" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <IconSymbol
+          name='text.alignleft'
+          size={20}
+          color={colors.primaryBlue}
+          style={styles.inputIcon}
+        />
         <View style={[styles.inputContent, { flex: 1 }]}>
-          <Text style={[styles.inputLabel, { color: colors.text }]}>Description *</Text>
+          <Text style={[styles.inputLabel, { color: colors.text }]}>
+            Description
+          </Text>
           <TextInput
             style={[styles.descriptionInput, { color: colors.text }]}
-            placeholder="What did you spend on?"
+            placeholder='What did you spend on? (optional)'
             placeholderTextColor={colors.placeholder}
             value={description}
             onChangeText={setDescription}
@@ -475,12 +525,14 @@ const AddTransactionScreen: React.FC = () => {
   const renderCategorySelector = () => (
     <View style={styles.categorySection}>
       <View style={styles.categorySectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>CATEGORY</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          CATEGORY
+        </Text>
         {/* <TouchableOpacity>
           <Text style={[styles.seeAllButton, { color: colors.primaryBlue }]}>See All</Text>
         </TouchableOpacity> */}
       </View>
-      
+
       <View style={styles.categoriesGrid}>
         {categories.map((category) => (
           <TouchableOpacity
@@ -488,26 +540,39 @@ const AddTransactionScreen: React.FC = () => {
             style={[
               styles.categoryItem,
               {
-                backgroundColor: selectedCategory.id === category.id ? colors.primaryBlue : colors.cardBackground,
-                borderColor: selectedCategory.id === category.id ? colors.primaryBlue : colors.border,
-              }
+                backgroundColor:
+                  selectedCategory.id === category.id
+                    ? colors.primaryBlue
+                    : colors.cardBackground,
+                borderColor:
+                  selectedCategory.id === category.id
+                    ? colors.primaryBlue
+                    : colors.border,
+              },
             ]}
-            onPress={() => handleCategorySelect(category)}
-          >
+            onPress={() => handleCategorySelect(category)}>
             {category.icon ? (
               <Text style={styles.categoryIcon}>{category.icon}</Text>
             ) : (
-              <View style={[styles.moreIconContainer, { borderColor: colors.border }]}>
-                <IconSymbol name="plus" size={20} color={colors.subText} />
+              <View
+                style={[
+                  styles.moreIconContainer,
+                  { borderColor: colors.border },
+                ]}>
+                <IconSymbol name='plus' size={20} color={colors.subText} />
               </View>
             )}
-            <Text style={[
-              styles.categoryName,
-              { 
-                color: selectedCategory.id === category.id ? '#FFFFFF' : colors.text,
-                marginTop: 8 
-              }
-            ]}>
+            <Text
+              style={[
+                styles.categoryName,
+                {
+                  color:
+                    selectedCategory.id === category.id
+                      ? '#FFFFFF'
+                      : colors.text,
+                  marginTop: 8,
+                },
+              ]}>
               {category.name}
             </Text>
           </TouchableOpacity>
@@ -517,39 +582,60 @@ const AddTransactionScreen: React.FC = () => {
   );
 
   const renderDateSelector = () => (
-    <TouchableOpacity 
-      style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-      onPress={handleDateSelect}
-    >
+    <TouchableOpacity
+      style={[
+        styles.inputSection,
+        { backgroundColor: colors.cardBackground, borderColor: colors.border },
+      ]}
+      onPress={handleDateSelect}>
       <View style={styles.inputRow}>
-        <IconSymbol name="calendar" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <IconSymbol
+          name='calendar'
+          size={20}
+          color={colors.primaryBlue}
+          style={styles.inputIcon}
+        />
         <View style={styles.inputContent}>
           <Text style={[styles.inputLabel, { color: colors.text }]}>Date</Text>
-          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>When did this happen?</Text>
+          <Text style={[styles.inputSubtitle, { color: colors.subText }]}>
+            When did this happen?
+          </Text>
         </View>
         <View style={styles.inputValueContainer}>
           <Text style={[styles.inputValue, { color: colors.text }]}>
-            {selectedDate.toLocaleDateString('en-US', { 
-              month: 'short', 
+            {selectedDate.toLocaleDateString('en-US', {
+              month: 'short',
               day: 'numeric',
-              year: selectedDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+              year:
+                selectedDate.getFullYear() !== new Date().getFullYear()
+                  ? 'numeric'
+                  : undefined,
             })}
           </Text>
-          <IconSymbol name="chevron.right" size={16} color={colors.subText} />
+          <IconSymbol name='chevron.right' size={16} color={colors.subText} />
         </View>
       </View>
     </TouchableOpacity>
   );
 
   const renderNotesInput = () => (
-    <View style={[styles.inputSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+    <View
+      style={[
+        styles.inputSection,
+        { backgroundColor: colors.cardBackground, borderColor: colors.border },
+      ]}>
       <View style={styles.inputRow}>
-        <IconSymbol name="note.text" size={20} color={colors.primaryBlue} style={styles.inputIcon} />
+        <IconSymbol
+          name='note.text'
+          size={20}
+          color={colors.primaryBlue}
+          style={styles.inputIcon}
+        />
         <View style={[styles.inputContent, { flex: 1 }]}>
           <Text style={[styles.inputLabel, { color: colors.text }]}>Notes</Text>
           <TextInput
             style={[styles.descriptionInput, { color: colors.text }]}
-            placeholder="Add any additional notes..."
+            placeholder='Add any additional notes...'
             placeholderTextColor={colors.placeholder}
             value={notes}
             onChangeText={setNotes}
@@ -572,49 +658,56 @@ const AddTransactionScreen: React.FC = () => {
             onPress={() => {
               if (key === '.') {
                 if (!amount.includes('.')) {
-                  setAmount(prev => prev === '0' ? '0.' : prev + '.');
+                  setAmount((prev) => (prev === '0' ? '0.' : prev + '.'));
                 }
               } else {
-                setAmount(prev => prev === '0' ? key.toString() : prev + key.toString());
+                setAmount((prev) =>
+                  prev === '0' ? key.toString() : prev + key.toString()
+                );
               }
-            }}
-          >
-            <Text style={[styles.keypadButtonText, { color: colors.text }]}>{key}</Text>
+            }}>
+            <Text style={[styles.keypadButtonText, { color: colors.text }]}>
+              {key}
+            </Text>
           </TouchableOpacity>
         ))}
-        
+
         {/* Delete button */}
         <TouchableOpacity
           style={styles.keypadButton}
           onPress={() => {
-            setAmount(prev => {
+            setAmount((prev) => {
               const newAmount = prev.slice(0, -1);
               return newAmount || '0';
             });
-          }}
-        >
-          <IconSymbol name="delete.left" size={20} color={colors.text} />
+          }}>
+          <IconSymbol name='delete.left' size={20} color={colors.text} />
         </TouchableOpacity>
       </View>
-      
+
       {/* Calendar and checkmark buttons */}
       <View style={styles.keypadActions}>
-        <TouchableOpacity style={styles.keypadActionButton} onPress={() => setShowDatePicker(true)}>
-          <IconSymbol name="calendar" size={20} color={colors.subText} />
+        <TouchableOpacity
+          style={styles.keypadActionButton}
+          onPress={() => setShowDatePicker(true)}>
+          <IconSymbol name='calendar' size={20} color={colors.subText} />
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.keypadActionButton} 
-          onPress={() => setIsKeypadVisible(false)}
-        >
-          <Text style={[styles.keypadDoneText, { color: colors.text }]}>Done</Text>
+
+        <TouchableOpacity
+          style={styles.keypadActionButton}
+          onPress={() => setIsKeypadVisible(false)}>
+          <Text style={[styles.keypadDoneText, { color: colors.text }]}>
+            Done
+          </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.keypadSaveButton, { backgroundColor: colors.primaryBlue }]}
-          onPress={handleSave}
-        >
-          <IconSymbol name="checkmark" size={24} color="#FFFFFF" />
+
+        <TouchableOpacity
+          style={[
+            styles.keypadSaveButton,
+            { backgroundColor: colors.primaryBlue },
+          ]}
+          onPress={handleSave}>
+          <IconSymbol name='checkmark' size={24} color='#FFFFFF' />
         </TouchableOpacity>
       </View>
     </View>
@@ -624,35 +717,38 @@ const AddTransactionScreen: React.FC = () => {
     <MainLayout>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         {renderHeader()}
-        
+
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primaryBlue} />
+            <ActivityIndicator size='large' color={colors.primaryBlue} />
             <Text style={[styles.loadingText, { color: colors.subText }]}>
               Loading budgets and accounts...
             </Text>
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>
-            <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
-            <TouchableOpacity 
-              style={[styles.retryButton, { backgroundColor: colors.primaryBlue }]}
-              onPress={loadData}
-            >
+            <Text style={[styles.errorText, { color: colors.text }]}>
+              {error}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.retryButton,
+                { backgroundColor: colors.primaryBlue },
+              ]}
+              onPress={loadData}>
               <Text style={styles.retryButtonText}>Retry</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.keyboardAvoid}
-          >
-            <TouchableWithoutFeedback onPress={() => isKeypadVisible && setIsKeypadVisible(false)}>
-              <ScrollView 
+            style={styles.keyboardAvoid}>
+            <TouchableWithoutFeedback
+              onPress={() => isKeypadVisible && setIsKeypadVisible(false)}>
+              <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-              >
+                showsVerticalScrollIndicator={false}>
                 {renderTransactionTypeSelector()}
                 {renderAmountInput()}
                 {renderDescriptionInput()}
@@ -670,45 +766,223 @@ const AddTransactionScreen: React.FC = () => {
             {showDatePicker && Platform.OS === 'ios' && (
               <Modal
                 transparent={true}
-                animationType="slide"
+                animationType='slide'
                 visible={showDatePicker}
-                onRequestClose={() => setShowDatePicker(false)}
-              >
+                onRequestClose={() => setShowDatePicker(false)}>
                 <View style={styles.modalOverlay}>
-                  <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+                  <View
+                    style={[
+                      styles.modalContent,
+                      { backgroundColor: colors.cardBackground },
+                    ]}>
                     <View style={styles.modalHeader}>
-                      <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                        <Text style={[styles.modalButton, { color: colors.primaryBlue }]}>Cancel</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowDatePicker(false)}>
+                        <Text
+                          style={[
+                            styles.modalButton,
+                            { color: colors.primaryBlue },
+                          ]}>
+                          Cancel
+                        </Text>
                       </TouchableOpacity>
-                      <Text style={[styles.modalTitle, { color: colors.text }]}>Select Date</Text>
-                      <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                        <Text style={[styles.modalButton, { color: colors.primaryBlue }]}>Done</Text>
+                      <Text style={[styles.modalTitle, { color: colors.text }]}>
+                        Select Date
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowDatePicker(false)}>
+                        <Text
+                          style={[
+                            styles.modalButton,
+                            { color: colors.primaryBlue },
+                          ]}>
+                          Done
+                        </Text>
                       </TouchableOpacity>
                     </View>
                     <DateTimePicker
                       value={selectedDate}
-                      mode="date"
-                      display="spinner"
+                      mode='date'
+                      display='spinner'
                       onChange={onDateChange}
                       maximumDate={new Date()}
                       textColor={colors.text}
-                      themeVariant="dark"
+                      themeVariant='dark'
                     />
                   </View>
                 </View>
               </Modal>
             )}
-            
+
             {/* Android Date Picker */}
             {showDatePicker && Platform.OS === 'android' && (
               <DateTimePicker
                 value={selectedDate}
-                mode="date"
-                display="default"
+                mode='date'
+                display='default'
                 onChange={onDateChange}
                 maximumDate={new Date()}
               />
             )}
+
+            {/* Account Selection Modal */}
+            <Modal
+              transparent={true}
+              animationType='slide'
+              visible={showAccountModal}
+              onRequestClose={() => setShowAccountModal(false)}>
+              <View style={styles.modalOverlay}>
+                <View
+                  style={[
+                    styles.modalContent,
+                    { backgroundColor: colors.cardBackground },
+                  ]}>
+                  <View style={styles.modalHeader}>
+                    <TouchableOpacity
+                      onPress={() => setShowAccountModal(false)}>
+                      <Text
+                        style={[
+                          styles.modalButton,
+                          { color: colors.primaryBlue },
+                        ]}>
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.modalTitle, { color: colors.text }]}>
+                      Select Account
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowAccountModal(false)}>
+                      <Text
+                        style={[
+                          styles.modalButton,
+                          { color: colors.primaryBlue },
+                        ]}>
+                        Done
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={{ maxHeight: 300 }}>
+                    {/* No Account Option */}
+                    <TouchableOpacity
+                      style={[
+                        styles.accountOption,
+                        {
+                          backgroundColor: !selectedAccount
+                            ? colors.primaryBlue + '20'
+                            : 'transparent',
+                          borderBottomColor: colors.border,
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedAccount(null);
+                        setShowAccountModal(false);
+                      }}>
+                      <View style={styles.accountOptionContent}>
+                        <View
+                          style={[
+                            styles.accountIcon,
+                            { backgroundColor: colors.border },
+                          ]}>
+                          <IconSymbol
+                            name='minus'
+                            size={16}
+                            color={colors.subText}
+                          />
+                        </View>
+                        <View style={styles.accountInfo}>
+                          <Text
+                            style={[
+                              styles.accountName,
+                              { color: colors.text },
+                            ]}>
+                            No Account
+                          </Text>
+                          <Text
+                            style={[
+                              styles.accountSubtitle,
+                              { color: colors.subText },
+                            ]}>
+                            Don&apos;t track this transaction
+                          </Text>
+                        </View>
+                        {!selectedAccount && (
+                          <IconSymbol
+                            name='checkmark'
+                            size={16}
+                            color={colors.primaryBlue}
+                          />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+
+                    {/* Account Options */}
+                    {accounts.map((account) => (
+                      <TouchableOpacity
+                        key={account.id}
+                        style={[
+                          styles.accountOption,
+                          {
+                            backgroundColor:
+                              selectedAccount?.id === account.id
+                                ? colors.primaryBlue + '20'
+                                : 'transparent',
+                            borderBottomColor: colors.border,
+                          },
+                        ]}
+                        onPress={() => {
+                          setSelectedAccount(account);
+                          setShowAccountModal(false);
+                        }}>
+                        <View style={styles.accountOptionContent}>
+                          <View
+                            style={[
+                              styles.accountIcon,
+                              {
+                                backgroundColor:
+                                  account.color || colors.primaryBlue,
+                              },
+                            ]}>
+                            <Text style={styles.accountIconText}>
+                              {account.icon || '💳'}
+                            </Text>
+                          </View>
+                          <View style={styles.accountInfo}>
+                            <Text
+                              style={[
+                                styles.accountName,
+                                { color: colors.text },
+                              ]}>
+                              {account.name}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.accountSubtitle,
+                                { color: colors.subText },
+                              ]}>
+                              {account.type} •{' '}
+                              {account.balance
+                                ? `Balance: $${Math.abs(
+                                    account.balance
+                                  ).toFixed(2)}`
+                                : 'No balance'}
+                            </Text>
+                          </View>
+                          {selectedAccount?.id === account.id && (
+                            <IconSymbol
+                              name='checkmark'
+                              size={16}
+                              color={colors.primaryBlue}
+                            />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+            </Modal>
           </KeyboardAvoidingView>
         )}
       </View>
@@ -974,6 +1248,37 @@ const styles = StyleSheet.create({
   modalButton: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  accountOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  accountOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  accountIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  accountIconText: {
+    fontSize: 18,
+  },
+  accountInfo: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  accountSubtitle: {
+    fontSize: 14,
   },
 });
 

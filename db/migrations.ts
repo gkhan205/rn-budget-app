@@ -9,7 +9,8 @@ export const initializeDatabase = async (): Promise<void> => {
     // In the future, this can be replaced with proper Drizzle migrations
     await createTables();
     await migrateBudgetTableToIncome(); // Add this migration
-    
+    await migrateRecurringExpensesBudgetId(); // Add new migration for nullable budget_id
+
     console.log('✅ Database initialization completed successfully');
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
@@ -24,7 +25,7 @@ export const initializeDatabase = async (): Promise<void> => {
 export const createTables = async (): Promise<void> => {
   try {
     const database = await getDatabase();
-    
+
     // Create accounts table
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS accounts (
@@ -42,7 +43,7 @@ export const createTables = async (): Promise<void> => {
         updated_at INTEGER NOT NULL
       );
     `);
-    
+
     // Create categories table
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS categories (
@@ -61,7 +62,7 @@ export const createTables = async (): Promise<void> => {
         FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE CASCADE
       );
     `);
-    
+
     // Create app_settings table
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS app_settings (
@@ -76,7 +77,7 @@ export const createTables = async (): Promise<void> => {
         updated_at INTEGER NOT NULL
       );
     `);
-    
+
     // Create budgets table
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS budgets (
@@ -93,7 +94,7 @@ export const createTables = async (): Promise<void> => {
         updated_at INTEGER NOT NULL
       );
     `);
-    
+
     // Create expenses table
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS expenses (
@@ -116,7 +117,7 @@ export const createTables = async (): Promise<void> => {
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
       );
     `);
-    
+
     // Create income table
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS income (
@@ -137,12 +138,12 @@ export const createTables = async (): Promise<void> => {
         FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL
       );
     `);
-    
+
     // Create recurring_expenses table
     await database.execAsync(`
       CREATE TABLE IF NOT EXISTS recurring_expenses (
         id TEXT PRIMARY KEY,
-        budget_id TEXT NOT NULL,
+        budget_id TEXT,
         account_id TEXT,
         category_id TEXT,
         name TEXT NOT NULL,
@@ -162,7 +163,24 @@ export const createTables = async (): Promise<void> => {
         FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
       );
     `);
-    
+
+    // Create budget_periods table
+    await database.execAsync(`
+      CREATE TABLE IF NOT EXISTS budget_periods (
+        id TEXT PRIMARY KEY,
+        budget_id TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+        limit_amount REAL DEFAULT 0 NOT NULL,
+        period_start INTEGER NOT NULL,
+        period_end INTEGER NOT NULL,
+        is_notified INTEGER DEFAULT 0 NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        FOREIGN KEY (budget_id) REFERENCES budgets(id) ON DELETE CASCADE
+      );
+    `);
+
     // Create indexes for performance
     await database.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_expenses_budget_id ON expenses(budget_id);
@@ -179,6 +197,10 @@ export const createTables = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_recurring_expenses_account_id ON recurring_expenses(account_id);
       CREATE INDEX IF NOT EXISTS idx_recurring_expenses_category_id ON recurring_expenses(category_id);
       
+      CREATE INDEX IF NOT EXISTS idx_budget_periods_budget_id ON budget_periods(budget_id);
+      CREATE INDEX IF NOT EXISTS idx_budget_periods_year_month ON budget_periods(year, month);
+      CREATE INDEX IF NOT EXISTS idx_budget_periods_is_notified ON budget_periods(is_notified);
+      
       CREATE INDEX IF NOT EXISTS idx_budgets_is_archived ON budgets(is_archived);
       CREATE INDEX IF NOT EXISTS idx_accounts_is_active ON accounts(is_active);
       CREATE INDEX IF NOT EXISTS idx_accounts_is_archived ON accounts(is_archived);
@@ -187,9 +209,9 @@ export const createTables = async (): Promise<void> => {
       CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(key);
       CREATE INDEX IF NOT EXISTS idx_app_settings_category ON app_settings(category);
     `);
-    
+
     console.log('✅ Database tables created successfully');
-    
+
     // Check and create income table if it doesn't exist
     await createIncomeTableIfNotExists(database);
   } catch (error) {
@@ -201,19 +223,21 @@ export const createTables = async (): Promise<void> => {
 /**
  * Create income table if it doesn't exist (for migration purposes)
  */
-export const createIncomeTableIfNotExists = async (database?: any): Promise<void> => {
+export const createIncomeTableIfNotExists = async (
+  database?: any
+): Promise<void> => {
   try {
-    const db = database || await getDatabase();
-    
+    const db = database || (await getDatabase());
+
     // Check if income table exists
     const tableExists = await db.getFirstAsync(`
       SELECT name FROM sqlite_master 
       WHERE type='table' AND name='income';
     `);
-    
+
     if (!tableExists) {
       console.log('🔄 Creating income table...');
-      
+
       // Create income table
       await db.execAsync(`
         CREATE TABLE income (
@@ -234,14 +258,14 @@ export const createIncomeTableIfNotExists = async (database?: any): Promise<void
           FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL
         );
       `);
-      
+
       // Create indexes
       await db.execAsync(`
         CREATE INDEX idx_income_budget_id ON income(budget_id);
         CREATE INDEX idx_income_date ON income(date);
         CREATE INDEX idx_income_account_id ON income(account_id);
       `);
-      
+
       console.log('✅ Income table created successfully');
     }
   } catch (error) {
@@ -256,26 +280,30 @@ export const createIncomeTableIfNotExists = async (database?: any): Promise<void
 export const migrateBudgetTableToIncome = async (): Promise<void> => {
   try {
     const database = await getDatabase();
-    
+
     // Check if limit_amount column exists
-    const tableInfo = await database.getAllAsync(`PRAGMA table_info(budgets);`) as any[];
-    const limitAmountColumn = tableInfo.find(col => col.name === 'limit_amount');
-    const incomeColumn = tableInfo.find(col => col.name === 'income');
-    
+    const tableInfo = (await database.getAllAsync(
+      `PRAGMA table_info(budgets);`
+    )) as any[];
+    const limitAmountColumn = tableInfo.find(
+      (col) => col.name === 'limit_amount'
+    );
+    const incomeColumn = tableInfo.find((col) => col.name === 'income');
+
     // If limit_amount exists and income doesn't, migrate
     if (limitAmountColumn && !incomeColumn) {
       console.log('🔄 Migrating budgets table from limit_amount to income...');
-      
+
       // Add income column with default value 0
       await database.execAsync(`
         ALTER TABLE budgets ADD COLUMN income REAL NOT NULL DEFAULT 0;
       `);
-      
+
       // Copy data from limit_amount to income (where limit_amount is not null)
       await database.execAsync(`
         UPDATE budgets SET income = COALESCE(limit_amount, 0) WHERE limit_amount IS NOT NULL;
       `);
-      
+
       // Create temporary table with new structure
       await database.execAsync(`
         CREATE TABLE budgets_new (
@@ -292,24 +320,101 @@ export const migrateBudgetTableToIncome = async (): Promise<void> => {
           updated_at INTEGER NOT NULL
         );
       `);
-      
+
       // Copy data to new table
       await database.execAsync(`
         INSERT INTO budgets_new (id, name, icon, color, income, period_type, start_date, end_date, is_archived, created_at, updated_at)
         SELECT id, name, icon, color, income, period_type, start_date, end_date, is_archived, created_at, updated_at
         FROM budgets;
       `);
-      
+
       // Drop old table and rename new table
       await database.execAsync(`DROP TABLE budgets;`);
       await database.execAsync(`ALTER TABLE budgets_new RENAME TO budgets;`);
-      
+
       console.log('✅ Budget table migration completed successfully');
     } else if (incomeColumn) {
-      console.log('✅ Budget table already has income column, skipping migration');
+      console.log(
+        '✅ Budget table already has income column, skipping migration'
+      );
     }
   } catch (error) {
     console.error('❌ Failed to migrate budgets table:', error);
     throw new Error(`Failed to migrate budgets table: ${error}`);
+  }
+};
+
+/**
+ * Migrate recurring_expenses table to make budget_id nullable
+ */
+export const migrateRecurringExpensesBudgetId = async (): Promise<void> => {
+  try {
+    const database = await getDatabase();
+
+    // Check if recurring_expenses table exists
+    const tableExists = await database.getFirstAsync(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name='recurring_expenses';
+    `);
+
+    if (tableExists) {
+      console.log(
+        '🔄 Migrating recurring_expenses table to make budget_id nullable...'
+      );
+
+      // Create temporary table with new structure
+      await database.execAsync(`
+        CREATE TABLE recurring_expenses_new (
+          id TEXT PRIMARY KEY,
+          budget_id TEXT,
+          account_id TEXT,
+          category_id TEXT,
+          name TEXT NOT NULL,
+          amount REAL NOT NULL,
+          frequency TEXT NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+          start_date INTEGER NOT NULL,
+          next_due_date INTEGER NOT NULL,
+          end_date INTEGER,
+          category TEXT,
+          description TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          auto_add INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+
+      // Copy data to new table
+      await database.execAsync(`
+        INSERT INTO recurring_expenses_new (id, budget_id, account_id, category_id, name, amount, frequency, start_date, next_due_date, end_date, category, description, is_active, auto_add, created_at, updated_at)
+        SELECT id, budget_id, account_id, category_id, name, amount, frequency, start_date, next_due_date, end_date, category, description, is_active, auto_add, created_at, updated_at
+        FROM recurring_expenses;
+      `);
+
+      // Drop old table and rename new table
+      await database.execAsync(`DROP TABLE recurring_expenses;`);
+      await database.execAsync(
+        `ALTER TABLE recurring_expenses_new RENAME TO recurring_expenses;`
+      );
+
+      // Recreate indexes and foreign key constraints
+      await database.execAsync(`
+        CREATE INDEX IF NOT EXISTS idx_recurring_expenses_budget_id ON recurring_expenses(budget_id);
+        CREATE INDEX IF NOT EXISTS idx_recurring_expenses_next_due_date ON recurring_expenses(next_due_date);
+        CREATE INDEX IF NOT EXISTS idx_recurring_expenses_account_id ON recurring_expenses(account_id);
+        CREATE INDEX IF NOT EXISTS idx_recurring_expenses_category_id ON recurring_expenses(category_id);
+      `);
+
+      console.log(
+        '✅ Recurring expenses table migration completed successfully'
+      );
+    } else {
+      console.log(
+        '✅ Recurring expenses table does not exist, skipping migration'
+      );
+    }
+  } catch (error) {
+    console.error('❌ Failed to migrate recurring_expenses table:', error);
+    throw new Error(`Failed to migrate recurring_expenses table: ${error}`);
   }
 };

@@ -1,3 +1,4 @@
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -17,19 +18,33 @@ const TransactionSummary: React.FC<TransactionSummaryProps> = ({
   totalExpense,
   colors,
 }) => {
+  const { format } = useCurrencyFormatter();
+
   return (
     <View style={styles.summaryContainer}>
-      <View style={[styles.summaryCard, { backgroundColor: colors.cardBackground }]}>
-        <Text style={[styles.summaryLabel, { color: colors.subText }]}>INCOME</Text>
+      <View
+        style={[
+          styles.summaryCard,
+          { backgroundColor: colors.cardBackground },
+        ]}>
+        <Text style={[styles.summaryLabel, { color: colors.subText }]}>
+          INCOME
+        </Text>
         <Text style={[styles.summaryAmount, { color: colors.incomeGreen }]}>
-          ${totalIncome.toFixed(2)}
+          {format(totalIncome)}
         </Text>
       </View>
-      
-      <View style={[styles.summaryCard, { backgroundColor: colors.cardBackground }]}>
-        <Text style={[styles.summaryLabel, { color: colors.subText }]}>EXPENSE</Text>
+
+      <View
+        style={[
+          styles.summaryCard,
+          { backgroundColor: colors.cardBackground },
+        ]}>
+        <Text style={[styles.summaryLabel, { color: colors.subText }]}>
+          EXPENSE
+        </Text>
         <Text style={[styles.summaryAmount, { color: colors.expenseRed }]}>
-          ${totalExpense.toFixed(2)}
+          {format(totalExpense)}
         </Text>
       </View>
     </View>

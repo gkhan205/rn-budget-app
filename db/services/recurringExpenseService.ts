@@ -113,6 +113,41 @@ export class RecurringExpenseService {
   }
 
   /**
+   * Detach a recurring expense from its current budget (set budgetId to null)
+   */
+  static async detachFromBudget(id: string): Promise<RecurringExpense | null> {
+    const db = getDrizzleDb();
+    const [detachedRecurringExpense] = await db
+      .update(recurringExpenses)
+      .set({
+        budgetId: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(recurringExpenses.id, id))
+      .returning();
+    return detachedRecurringExpense || null;
+  }
+
+  /**
+   * Assign a recurring expense to a budget
+   */
+  static async assignToBudget(
+    id: string,
+    budgetId: string
+  ): Promise<RecurringExpense | null> {
+    const db = getDrizzleDb();
+    const [assignedRecurringExpense] = await db
+      .update(recurringExpenses)
+      .set({
+        budgetId,
+        updatedAt: new Date(),
+      })
+      .where(eq(recurringExpenses.id, id))
+      .returning();
+    return assignedRecurringExpense || null;
+  }
+
+  /**
    * Delete a recurring expense
    */
   static async delete(id: string): Promise<boolean> {

@@ -1,4 +1,5 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -26,17 +27,26 @@ export const BudgetSummaryCard: React.FC<BudgetSummaryCardProps> = ({
   daysRemaining,
   colors,
 }) => {
+  const { format } = useCurrencyFormatter();
+
   return (
-    <View style={[styles.summaryCard, { backgroundColor: colors.cardBackground }]}>
+    <View
+      style={[styles.summaryCard, { backgroundColor: colors.cardBackground }]}>
       <View style={styles.summaryHeader}>
         <View>
-          <Text style={[styles.summaryLabel, { color: colors.subText }]}>Total Income</Text>
+          <Text style={[styles.summaryLabel, { color: colors.subText }]}>
+            Total Income
+          </Text>
           <Text style={[styles.summaryAmount, { color: colors.text }]}>
-            ${income.toFixed(2)}
+            {format(income)}
           </Text>
         </View>
-        <View style={[styles.incomeIcon, { backgroundColor: colors.primaryBlue + '20' }]}>
-          <IconSymbol name="banknote" size={20} color={colors.primaryBlue} />
+        <View
+          style={[
+            styles.incomeIcon,
+            { backgroundColor: colors.primaryBlue + '20' },
+          ]}>
+          <IconSymbol name='banknote' size={20} color={colors.primaryBlue} />
         </View>
       </View>
 
@@ -45,12 +55,13 @@ export const BudgetSummaryCard: React.FC<BudgetSummaryCardProps> = ({
           {percentage || 0}% Used
         </Text>
         <Text style={[styles.spentText, { color: colors.subText }]}>
-          ${spent.toFixed(2)} spent
+          {format(spent)} spent
         </Text>
       </View>
 
       <View style={styles.progressContainer}>
-        <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+        <View
+          style={[styles.progressTrack, { backgroundColor: colors.border }]}>
           <View
             style={[
               styles.progressFill,
@@ -65,13 +76,20 @@ export const BudgetSummaryCard: React.FC<BudgetSummaryCardProps> = ({
 
       <View style={styles.summaryFooter}>
         <View style={styles.remainingContainer}>
-          <View style={[styles.remainingIndicator, { backgroundColor: colors.green }]} />
+          <View
+            style={[
+              styles.remainingIndicator,
+              { backgroundColor: colors.green },
+            ]}
+          />
           <Text style={[styles.remainingText, { color: colors.green }]}>
-            ${(remaining || 0).toFixed(2)} Remaining
+            {format(remaining || 0)} Remaining
           </Text>
         </View>
         <Text style={[styles.resetText, { color: colors.subText }]}>
-          {daysRemaining > 0 ? `Resets in ${daysRemaining} days` : 'No end date'}
+          {daysRemaining > 0
+            ? `Resets in ${daysRemaining} days`
+            : 'No end date'}
         </Text>
       </View>
     </View>

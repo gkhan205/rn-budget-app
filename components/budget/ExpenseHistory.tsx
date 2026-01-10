@@ -1,5 +1,6 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Expense } from '@/db/schema/expenses';
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -18,6 +19,8 @@ export const ExpenseHistory: React.FC<ExpenseHistoryProps> = ({
   expenses,
   colors,
 }) => {
+  const { format } = useCurrencyFormatter();
+
   const formatDate = (date: Date): string => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
@@ -66,15 +69,23 @@ export const ExpenseHistory: React.FC<ExpenseHistoryProps> = ({
 
   const renderExpenseItem = ({ item }: { item: Expense }) => {
     const categoryColor = getCategoryColor(item.category);
-    
+
     return (
-      <View style={[styles.expenseItem, { backgroundColor: colors.cardBackground }]}>
+      <View
+        style={[
+          styles.expenseItem,
+          { backgroundColor: colors.cardBackground },
+        ]}>
         <View style={styles.expenseLeft}>
-          <View style={[styles.expenseIcon, { backgroundColor: categoryColor + '20' }]}>
-            <IconSymbol 
-              name={getCategoryIcon(item.category) as any} 
-              size={16} 
-              color={categoryColor} 
+          <View
+            style={[
+              styles.expenseIcon,
+              { backgroundColor: categoryColor + '20' },
+            ]}>
+            <IconSymbol
+              name={getCategoryIcon(item.category) as any}
+              size={16}
+              color={categoryColor}
             />
           </View>
           <View style={styles.expenseDetails}>
@@ -93,11 +104,19 @@ export const ExpenseHistory: React.FC<ExpenseHistoryProps> = ({
         </View>
         <View style={styles.expenseRight}>
           <Text style={[styles.expenseAmount, { color: colors.text }]}>
-            -${item.amount.toFixed(2)}
+            {format(item.amount)}
           </Text>
           {item.isRecurring && (
-            <View style={[styles.recurringBadge, { backgroundColor: colors.primaryBlue + '20' }]}>
-              <IconSymbol name="arrow.triangle.2.circlepath" size={10} color={colors.primaryBlue} />
+            <View
+              style={[
+                styles.recurringBadge,
+                { backgroundColor: colors.primaryBlue + '20' },
+              ]}>
+              <IconSymbol
+                name='arrow.triangle.2.circlepath'
+                size={10}
+                color={colors.primaryBlue}
+              />
             </View>
           )}
         </View>
@@ -106,9 +125,12 @@ export const ExpenseHistory: React.FC<ExpenseHistoryProps> = ({
   };
 
   const renderEmptyState = () => (
-    <View style={[styles.emptyState, { backgroundColor: colors.cardBackground }]}>
-      <IconSymbol name="tray" size={32} color={colors.subText} />
-      <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Expenses Yet</Text>
+    <View
+      style={[styles.emptyState, { backgroundColor: colors.cardBackground }]}>
+      <IconSymbol name='tray' size={32} color={colors.subText} />
+      <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
+        No Expenses Yet
+      </Text>
       <Text style={[styles.emptyStateSubtitle, { color: colors.subText }]}>
         Your expense history will appear here
       </Text>
@@ -120,8 +142,8 @@ export const ExpenseHistory: React.FC<ExpenseHistoryProps> = ({
   }
 
   // Sort expenses by date (newest first)
-  const sortedExpenses = [...expenses].sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+  const sortedExpenses = [...expenses].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 
   return (
@@ -129,7 +151,9 @@ export const ExpenseHistory: React.FC<ExpenseHistoryProps> = ({
       {sortedExpenses.map((expense, index) => (
         <React.Fragment key={expense.id}>
           {renderExpenseItem({ item: expense })}
-          {index < sortedExpenses.length - 1 && <View style={styles.separator} />}
+          {index < sortedExpenses.length - 1 && (
+            <View style={styles.separator} />
+          )}
         </React.Fragment>
       ))}
     </View>

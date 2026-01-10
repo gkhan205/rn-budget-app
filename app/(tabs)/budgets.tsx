@@ -1,12 +1,17 @@
 import MainLayout from '@/components/MainLayout';
+import { MonthlyIncomeModal } from '@/components/MonthlyIncomeModal';
 import { SwipeableBudgetItem } from '@/components/budget';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { Budget } from '@/db/schema/budgets';
+import { BudgetPeriodService } from '@/db/services/budgetPeriodService';
 import { BudgetService } from '@/db/services/budgetService';
 import { ExpenseService } from '@/db/services/expenseService';
 import { RecurringExpenseService } from '@/db/services/recurringExpenseService';
+import { useCurrencyFormatter } from '@/hooks';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useMonthlyIncomeNotification } from '@/hooks/useMonthlyIncomeNotification';
 import { calculateBudgetMetrics } from '@/utils/budgetCalculations';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
@@ -14,6 +19,8 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
+  Platform,
   SafeAreaView,
   StatusBar,
   StyleSheet,
@@ -43,10 +50,19 @@ interface BudgetSummary {
 }
 
 const BudgetsScreen: React.FC = () => {
+  const { format } = useCurrencyFormatter();
   const colorScheme = useColorScheme();
   const router = useRouter();
   const isDark = colorScheme === 'dark';
-  
+
+  // Monthly income notification hook
+  const {
+    currentIncomeModal,
+    updateIncome,
+    closeModal,
+    checkForPendingIncomes,
+  } = useMonthlyIncomeNotification();
+
   // State management
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [budgetSummary, setBudgetSummary] = useState<BudgetSummary>({
@@ -57,6 +73,8 @@ const BudgetsScreen: React.FC = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const colors = {
     background: '#1A1B1F', // Force dark background
@@ -99,7 +117,9 @@ const BudgetsScreen: React.FC = () => {
     autoAdd: recurringExpense.autoAdd || false,
     isActive: recurringExpense.isActive,
   });
-  const getBudgetIconAndColor = (budget: Budget): { icon: string; iconColor: string } => {
+  const getBudgetIconAndColor = (
+    budget: Budget
+  ): { icon: string; iconColor: string } => {
     return {
       icon: budget.icon,
       iconColor: budget.color,
@@ -115,15 +135,36 @@ const BudgetsScreen: React.FC = () => {
   };
 
   // Helper function to format budget period
-  const formatBudgetPeriod = (budget: Budget, recurringCount: number): string => {
+  const formatBudgetPeriod = (
+    budget: Budget,
+    recurringCount: number
+  ): string => {
     const periodType = budget.periodType || 'monthly';
     let period = periodType.charAt(0).toUpperCase() + periodType.slice(1);
-    
+
     if (recurringCount > 0) {
       period += ` • ${recurringCount} recurring`;
     }
-    
+
     return period;
+  };
+
+  const formatSelectedMonthYear = (date: Date): string => {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return `${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
   // Load budget data from database
@@ -131,10 +172,14 @@ const BudgetsScreen: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+
+      // Ensure database is initialized before proceeding
+      const { getDatabase } = await import('@/db/config');
+      await getDatabase();
+
       // Get active budgets
       const budgets = await BudgetService.getActive();
-      
+
       if (budgets.length === 0) {
         setBudgetItems([]);
         setBudgetSummary({
@@ -148,15 +193,28 @@ const BudgetsScreen: React.FC = () => {
 
       // Calculate metrics for each budget
       const budgetItemsPromises = budgets.map(async (budget) => {
-        // Get current budget period
-        const period = BudgetService.getCurrentPeriod(budget);
-        
-        // Get expenses and recurring expenses for this budget
+        // Get current budget period based on selected date
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth() + 1; // getMonth() returns 0-11, but we want 1-12
+
+        // Get or create budget period for the selected month/year
+        const budgetPeriod = await BudgetPeriodService.getOrCreatePeriod(
+          budget.id,
+          year,
+          month
+        );
+
+        const startOfMonth = new Date(year, month - 1, 1);
+        const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+
+        // Get expenses and recurring expenses for this budget in the selected period
         const [expenses, recurringExpenses] = await Promise.all([
-          period.end 
-            ? ExpenseService.getByBudgetAndDateRange(budget.id, period.start, period.end)
-            : ExpenseService.getByBudgetId(budget.id),
-          RecurringExpenseService.getByBudgetId(budget.id)
+          ExpenseService.getByBudgetAndDateRange(
+            budget.id,
+            startOfMonth,
+            endOfMonth
+          ),
+          RecurringExpenseService.getByBudgetId(budget.id),
         ]);
 
         // Calculate budget metrics (cast budget to handle date type differences)
@@ -165,17 +223,25 @@ const BudgetsScreen: React.FC = () => {
           createdAt: budget.createdAt || new Date(),
           updatedAt: budget.updatedAt || new Date(),
         } as any; // Temporary cast to handle type differences
-        
+
         // Map data to expected calculation format
         const mappedExpenses = expenses.map(mapExpenseForCalculation);
-        const mappedRecurringExpenses = recurringExpenses.map(mapRecurringExpenseForCalculation);
-        
-        const metrics = calculateBudgetMetrics(budgetForCalculation, mappedExpenses, mappedRecurringExpenses);
+        const mappedRecurringExpenses = recurringExpenses.map(
+          mapRecurringExpenseForCalculation
+        );
+
+        const metrics = calculateBudgetMetrics(
+          budgetForCalculation,
+          mappedExpenses,
+          mappedRecurringExpenses
+        );
         const { icon, iconColor } = getBudgetIconAndColor(budget);
-        
+
         // Count active recurring expenses
-        const activeRecurringCount = recurringExpenses.filter(re => re.isActive).length;
-        
+        const activeRecurringCount = recurringExpenses.filter(
+          (re) => re.isActive
+        ).length;
+
         return {
           id: budget.id,
           name: budget.name,
@@ -183,9 +249,16 @@ const BudgetsScreen: React.FC = () => {
           iconColor,
           period: formatBudgetPeriod(budget, activeRecurringCount),
           spent: metrics.totalSpent,
-          limit: budget.income,
-          percentage: metrics.progressPercentage,
-          progressColor: getProgressColor(metrics.progressPercentage),
+          limit: budgetPeriod.limitAmount, // Use the period-specific limit amount
+          percentage:
+            budgetPeriod.limitAmount > 0
+              ? (Math.abs(metrics.totalSpent) / budgetPeriod.limitAmount) * 100
+              : null,
+          progressColor: getProgressColor(
+            budgetPeriod.limitAmount > 0
+              ? (Math.abs(metrics.totalSpent) / budgetPeriod.limitAmount) * 100
+              : null
+          ),
           recurringCount: activeRecurringCount,
         };
       });
@@ -194,8 +267,13 @@ const BudgetsScreen: React.FC = () => {
       setBudgetItems(budgetItemsData);
 
       // Calculate summary totals
-      const totalPlanned = budgetItemsData.reduce((sum, item) => sum + (item.limit || 0), 0);
-      const totalSpent = Math.abs(budgetItemsData.reduce((sum, item) => sum + item.spent, 0));
+      const totalPlanned = budgetItemsData.reduce(
+        (sum, item) => sum + (item.limit || 0),
+        0
+      );
+      const totalSpent = Math.abs(
+        budgetItemsData.reduce((sum, item) => sum + item.spent, 0)
+      );
       const remaining = totalPlanned - totalSpent;
       const expectedSavings = Math.max(0, remaining); // Simple calculation
 
@@ -205,14 +283,13 @@ const BudgetsScreen: React.FC = () => {
         remaining,
         expectedSavings,
       });
-
     } catch (err) {
       console.error('Failed to load budget data:', err);
       setError('Failed to load budgets. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedDate]);
 
   // Load data on screen focus
   useFocusEffect(
@@ -220,6 +297,19 @@ const BudgetsScreen: React.FC = () => {
       loadBudgetData();
     }, [loadBudgetData])
   );
+
+  const handleDateChange = (event: any, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (date) {
+      setSelectedDate(date);
+      // Check for pending income notifications when date changes
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      checkForPendingIncomes(year, month);
+    }
+  };
 
   const handleAddBudget = () => {
     router.push('/add-budget');
@@ -262,7 +352,10 @@ const BudgetsScreen: React.FC = () => {
               await loadBudgetData(); // Refresh the data
             } catch (error) {
               console.error('Failed to delete budget:', error);
-              Alert.alert('Error', 'Failed to delete budget. Please try again.');
+              Alert.alert(
+                'Error',
+                'Failed to delete budget. Please try again.'
+              );
               setIsLoading(false);
             }
           },
@@ -283,17 +376,26 @@ const BudgetsScreen: React.FC = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <View style={[styles.emptyIconContainer, { backgroundColor: colors.primaryBlue + '20' }]}>
-        <IconSymbol name="plus.circle.fill" size={48} color={colors.primaryBlue} />
+      <View
+        style={[
+          styles.emptyIconContainer,
+          { backgroundColor: colors.primaryBlue + '20' },
+        ]}>
+        <IconSymbol
+          name='plus.circle.fill'
+          size={48}
+          color={colors.primaryBlue}
+        />
       </View>
-      <Text style={[styles.emptyTitle, { color: colors.text }]}>No Budgets Yet</Text>
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>
+        No Budgets Yet
+      </Text>
       <Text style={[styles.emptySubtitle, { color: colors.subText }]}>
         Create your first budget to start tracking your expenses
       </Text>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.emptyButton, { backgroundColor: colors.primaryBlue }]}
-        onPress={handleAddBudget}
-      >
+        onPress={handleAddBudget}>
         <Text style={styles.emptyButtonText}>Create Budget</Text>
       </TouchableOpacity>
     </View>
@@ -301,7 +403,7 @@ const BudgetsScreen: React.FC = () => {
 
   const renderLoadingState = () => (
     <View style={styles.loadingState}>
-      <ActivityIndicator size="large" color={colors.primaryBlue} />
+      <ActivityIndicator size='large' color={colors.primaryBlue} />
       <Text style={[styles.loadingText, { color: colors.subText }]}>
         Loading budgets...
       </Text>
@@ -310,17 +412,26 @@ const BudgetsScreen: React.FC = () => {
 
   const renderErrorState = () => (
     <View style={styles.errorState}>
-      <View style={[styles.errorIconContainer, { backgroundColor: colors.red + '20' }]}>
-        <IconSymbol name="exclamationmark.triangle.fill" size={48} color={colors.red} />
+      <View
+        style={[
+          styles.errorIconContainer,
+          { backgroundColor: colors.red + '20' },
+        ]}>
+        <IconSymbol
+          name='exclamationmark.triangle.fill'
+          size={48}
+          color={colors.red}
+        />
       </View>
-      <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load Budgets</Text>
+      <Text style={[styles.errorTitle, { color: colors.text }]}>
+        Unable to Load Budgets
+      </Text>
       <Text style={[styles.errorSubtitle, { color: colors.subText }]}>
         {error}
       </Text>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.retryButton, { backgroundColor: colors.primaryBlue }]}
-        onPress={loadBudgetData}
-      >
+        onPress={loadBudgetData}>
         <Text style={styles.retryButtonText}>Try Again</Text>
       </TouchableOpacity>
     </View>
@@ -328,50 +439,79 @@ const BudgetsScreen: React.FC = () => {
 
   const renderHeader = () => (
     <View>
-      <View style={[styles.header, { backgroundColor: colors.headerBackground }]}>
+      <View
+        style={[styles.header, { backgroundColor: colors.headerBackground }]}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Budgets</Text>
-          <TouchableOpacity style={styles.dateSelector}>
-            <Text style={styles.headerDate}>Oct 2023</Text>
-            <IconSymbol name="chevron.down" size={12} color="#9BA1A6" />
+          <TouchableOpacity
+            style={styles.dateSelector}
+            onPress={() => setShowDatePicker(true)}>
+            <Text style={styles.headerDate}>
+              {formatSelectedMonthYear(selectedDate)}
+            </Text>
+            <IconSymbol name='chevron.down' size={12} color='#9BA1A6' />
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={styles.addButton} onPress={handleAddBudget}>
-          <IconSymbol name="plus" size={18} color="#FFFFFF" />
+          <IconSymbol name='plus' size={18} color='#FFFFFF' />
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.summaryContainer, { backgroundColor: colors.headerBackground }]}>
+      <View
+        style={[
+          styles.summaryContainer,
+          { backgroundColor: colors.headerBackground },
+        ]}>
         <View style={styles.expectedSavingsContainer}>
           <Text style={styles.expectedSavingsLabel}>EXPECTED SAVINGS</Text>
           <Text style={styles.expectedSavingsAmount}>
-            ${budgetSummary.expectedSavings.toLocaleString()}.00
+            {format(budgetSummary.expectedSavings)}
           </Text>
           {/* <Text style={styles.savingsChange}>📈 +12% vs last month</Text> */}
         </View>
 
         <View style={styles.summaryCards}>
-          <View style={[styles.summaryCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-            <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>Planned</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: 'rgba(255,255,255,0.1)' },
+            ]}>
+            <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>
+              Planned
+            </Text>
             <Text style={[styles.summaryAmount, { color: '#FFFFFF' }]}>
-              ${budgetSummary.totalPlanned.toLocaleString()}
+              {format(budgetSummary.totalPlanned)}
             </Text>
           </View>
-          <View style={[styles.summaryCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-            <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>Spent</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: 'rgba(255,255,255,0.1)' },
+            ]}>
+            <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>
+              Spent
+            </Text>
             <Text style={[styles.summaryAmount, { color: '#FFFFFF' }]}>
-              ${budgetSummary.totalSpent.toLocaleString()}
+              {format(budgetSummary.totalSpent)}
             </Text>
           </View>
-          <View style={[styles.summaryCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-            <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>Left</Text>
+          <View
+            style={[
+              styles.summaryCard,
+              { backgroundColor: 'rgba(255,255,255,0.1)' },
+            ]}>
+            <Text style={[styles.summaryLabel, { color: '#9BA1A6' }]}>
+              Left
+            </Text>
             <Text style={[styles.summaryAmount, { color: colors.primaryBlue }]}>
-              ${budgetSummary.remaining.toLocaleString()}
+              {format(budgetSummary.remaining)}
             </Text>
           </View>
         </View>
 
-        <Text style={[styles.categoriesTitle, { color: colors.text }]}>Your Budgets</Text>
+        <Text style={[styles.categoriesTitle, { color: colors.text }]}>
+          Your Budgets
+        </Text>
       </View>
     </View>
   );
@@ -381,15 +521,15 @@ const BudgetsScreen: React.FC = () => {
     if (isLoading) {
       return renderLoadingState();
     }
-    
+
     if (error) {
       return renderErrorState();
     }
-    
+
     if (budgetItems.length === 0) {
       return renderEmptyState();
     }
-    
+
     return (
       <FlatList
         data={budgetItems}
@@ -404,12 +544,93 @@ const BudgetsScreen: React.FC = () => {
 
   return (
     <MainLayout>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
         {renderContent()}
         <TouchableOpacity style={styles.fab} onPress={handleAddBudget}>
-          <IconSymbol name="plus" size={20} color="#FFFFFF" />
+          <IconSymbol name='plus' size={20} color='#FFFFFF' />
         </TouchableOpacity>
+
+        {/* Date Picker Modal */}
+        {showDatePicker && Platform.OS === 'ios' && (
+          <Modal
+            transparent={true}
+            animationType='slide'
+            visible={showDatePicker}
+            onRequestClose={() => setShowDatePicker(false)}>
+            <View style={styles.modalOverlay}>
+              <View
+                style={[
+                  styles.modalContent,
+                  { backgroundColor: colors.cardBackground },
+                ]}>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text
+                      style={[
+                        styles.modalButton,
+                        { color: colors.primaryBlue },
+                      ]}>
+                      Cancel
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                    Select Month
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                    <Text
+                      style={[
+                        styles.modalButton,
+                        { color: colors.primaryBlue },
+                      ]}>
+                      Done
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={selectedDate}
+                  mode='date'
+                  display='spinner'
+                  onChange={handleDateChange}
+                  maximumDate={new Date()}
+                  textColor={colors.text}
+                  themeVariant='dark'
+                />
+              </View>
+            </View>
+          </Modal>
+        )}
+
+        {/* Android Date Picker */}
+        {showDatePicker && Platform.OS === 'android' && (
+          <DateTimePicker
+            value={selectedDate}
+            mode='date'
+            display='default'
+            onChange={handleDateChange}
+            maximumDate={new Date()}
+          />
+        )}
+
+        {/* Monthly Income Modal */}
+        <MonthlyIncomeModal
+          visible={!!currentIncomeModal}
+          onClose={closeModal}
+          onUpdate={updateIncome}
+          budget={currentIncomeModal?.budget || null}
+          currentAmount={currentIncomeModal?.currentAmount || 0}
+          monthYear={
+            currentIncomeModal
+              ? formatSelectedMonthYear(
+                  new Date(
+                    currentIncomeModal.year,
+                    currentIncomeModal.month - 1
+                  )
+                )
+              : ''
+          }
+        />
       </SafeAreaView>
     </MainLayout>
   );
@@ -668,7 +889,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24
+    marginBottom: 24,
   },
   errorTitle: {
     fontSize: 20,
@@ -690,6 +911,33 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#404348',
+  },
+  modalButton: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalTitle: {
+    fontSize: 18,
     fontWeight: '600',
   },
 });

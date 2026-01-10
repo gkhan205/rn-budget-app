@@ -40,7 +40,7 @@ const BudgetDetailScreen: React.FC = () => {
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  
+
   // Edit form state
   const [editForm, setEditForm] = useState({
     name: '',
@@ -59,6 +59,7 @@ const BudgetDetailScreen: React.FC = () => {
     subText: '#9BA1A6',
     primaryBlue: '#4A9EFF',
     green: '#2ECC71',
+    red: '#E74C3C',
     border: '#404348',
     tabInactive: '#666666',
   };
@@ -69,11 +70,50 @@ const BudgetDetailScreen: React.FC = () => {
   };
 
   const handleAddRecurring = () => {
-    router.push('/add-recurring');
+    if (budgetDetail?.budget) {
+      router.push(
+        `/select-recurring-expense?budgetId=${budgetId}&budgetName=${encodeURIComponent(
+          budgetDetail.budget.name
+        )}`
+      );
+    }
   };
 
   const handleAddExpense = () => {
     router.push('/add-transaction');
+  };
+
+  // Detach recurring expense from budget
+  const handleDetachRecurring = async (recurringExpenseId: string) => {
+    try {
+      Alert.alert(
+        'Detach Recurring Expense',
+        'This will remove the recurring expense from this budget. You can reassign it later from the Settings > Recurring Expenses.',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Detach',
+            style: 'destructive',
+            onPress: async () => {
+              await RecurringExpenseService.detachFromBudget(
+                recurringExpenseId
+              );
+              // Refresh the budget data
+              refetch();
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Failed to detach recurring expense:', error);
+      Alert.alert(
+        'Error',
+        'Failed to detach recurring expense. Please try again.'
+      );
+    }
   };
 
   const handleTabChange = (tab: TabType) => {
@@ -129,15 +169,17 @@ const BudgetDetailScreen: React.FC = () => {
       for (const expense of budgetExpenses) {
         await ExpenseService.delete(expense.id);
       }
-      
-      const recurringExpenses = await RecurringExpenseService.getByBudgetId(budgetId);
+
+      const recurringExpenses = await RecurringExpenseService.getByBudgetId(
+        budgetId
+      );
       for (const recurringExpense of recurringExpenses) {
         await RecurringExpenseService.delete(recurringExpense.id);
       }
-      
+
       // Delete the budget itself
       await BudgetService.delete(budgetId);
-      
+
       setShowDeleteConfirm(false);
       router.back(); // Navigate back to budgets list
     } catch {
@@ -148,8 +190,13 @@ const BudgetDetailScreen: React.FC = () => {
   // Early returns for loading, error, and empty states
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primaryBlue} />
+      <SafeAreaView
+        style={[
+          styles.container,
+          styles.centerContent,
+          { backgroundColor: colors.background },
+        ]}>
+        <ActivityIndicator size='large' color={colors.primaryBlue} />
         <Text style={[styles.loadingText, { color: colors.text }]}>
           Loading budget details...
         </Text>
@@ -159,14 +206,16 @@ const BudgetDetailScreen: React.FC = () => {
 
   if (error) {
     return (
-      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
-        <Text style={[styles.errorText, { color: '#FF6B6B' }]}>
-          {error}
-        </Text>
-        <TouchableOpacity 
+      <SafeAreaView
+        style={[
+          styles.container,
+          styles.centerContent,
+          { backgroundColor: colors.background },
+        ]}>
+        <Text style={[styles.errorText, { color: '#FF6B6B' }]}>{error}</Text>
+        <TouchableOpacity
           style={[styles.retryButton, { backgroundColor: colors.primaryBlue }]}
-          onPress={refetch}
-        >
+          onPress={refetch}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -175,7 +224,12 @@ const BudgetDetailScreen: React.FC = () => {
 
   if (!budgetDetail) {
     return (
-      <SafeAreaView style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
+      <SafeAreaView
+        style={[
+          styles.container,
+          styles.centerContent,
+          { backgroundColor: colors.background },
+        ]}>
         <Text style={[styles.errorText, { color: colors.subText }]}>
           Budget not found
         </Text>
@@ -185,23 +239,39 @@ const BudgetDetailScreen: React.FC = () => {
 
   // Render methods - now safe to use budgetDetail without null checks
   const renderHeader = () => (
-    <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+    <View
+      style={[
+        styles.header,
+        {
+          backgroundColor: colors.background,
+          borderBottomColor: colors.border,
+        },
+      ]}>
       <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-        <IconSymbol name="chevron.left" size={20} color={colors.text} />
+        <IconSymbol name='chevron.left' size={20} color={colors.text} />
       </TouchableOpacity>
       <View style={styles.headerCenter}>
         <View style={styles.headerTitleContainer}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
             {budgetDetail.budget.name}
           </Text>
-          <IconSymbol name={budgetDetail.budget.icon as any} size={16} color={colors.primaryBlue} style={styles.headerIcon} />
+          <IconSymbol
+            name={budgetDetail.budget.icon as any}
+            size={16}
+            color={colors.primaryBlue}
+            style={styles.headerIcon}
+          />
         </View>
         <Text style={[styles.headerSubtitle, { color: colors.subText }]}>
-          {budgetDetail.budget.periodType.charAt(0).toUpperCase() + budgetDetail.budget.periodType.slice(1)} Budget
+          {budgetDetail.budget.periodType.charAt(0).toUpperCase() +
+            budgetDetail.budget.periodType.slice(1)}{' '}
+          Budget
         </Text>
       </View>
-      <TouchableOpacity style={styles.optionsButton} onPress={handleOptionsPress}>
-        <IconSymbol name="ellipsis" size={20} color={colors.text} />
+      <TouchableOpacity
+        style={styles.optionsButton}
+        onPress={handleOptionsPress}>
+        <IconSymbol name='ellipsis' size={20} color={colors.text} />
       </TouchableOpacity>
     </View>
   );
@@ -223,6 +293,7 @@ const BudgetDetailScreen: React.FC = () => {
       <RecurringExpensesList
         recurringExpenses={budgetDetail.recurringExpenses}
         colors={colors}
+        onDetach={handleDetachRecurring}
       />
       <ActionButtons
         onAddRecurring={handleAddRecurring}
@@ -238,6 +309,7 @@ const BudgetDetailScreen: React.FC = () => {
       <RecurringExpensesList
         recurringExpenses={budgetDetail.recurringExpenses}
         colors={colors}
+        onDetach={handleDetachRecurring}
       />
       <ActionButtons
         onAddRecurring={handleAddRecurring}
@@ -250,10 +322,7 @@ const BudgetDetailScreen: React.FC = () => {
 
   const renderHistoryTab = () => (
     <View style={styles.tabContent}>
-      <ExpenseHistory
-        expenses={budgetDetail.expenses}
-        colors={colors}
-      />
+      <ExpenseHistory expenses={budgetDetail.expenses} colors={colors} />
     </View>
   );
 
@@ -274,8 +343,9 @@ const BudgetDetailScreen: React.FC = () => {
 
   return (
     <>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar barStyle="light-content" />
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle='light-content' />
         {renderHeader()}
         <BudgetSummaryCard
           income={budgetDetail.budget.income}
@@ -296,29 +366,34 @@ const BudgetDetailScreen: React.FC = () => {
       <Modal
         visible={showOptionsMenu}
         transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowOptionsMenu(false)}
-      >
-        <TouchableOpacity 
+        animationType='fade'
+        onRequestClose={() => setShowOptionsMenu(false)}>
+        <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setShowOptionsMenu(false)}
-        >
-          <View style={[styles.optionsMenu, { backgroundColor: colors.cardBackground }]}>
-            <TouchableOpacity 
-              style={styles.optionItem}
-              onPress={handleEdit}
-            >
-              <IconSymbol name="pencil" size={18} color={colors.text} />
-              <Text style={[styles.optionText, { color: colors.text }]}>Edit Budget</Text>
+          onPress={() => setShowOptionsMenu(false)}>
+          <View
+            style={[
+              styles.optionsMenu,
+              { backgroundColor: colors.cardBackground },
+            ]}>
+            <TouchableOpacity style={styles.optionItem} onPress={handleEdit}>
+              <IconSymbol name='pencil' size={18} color={colors.text} />
+              <Text style={[styles.optionText, { color: colors.text }]}>
+                Edit Budget
+              </Text>
             </TouchableOpacity>
-            <View style={[styles.optionSeparator, { backgroundColor: colors.border }]} />
-            <TouchableOpacity 
-              style={styles.optionItem}
-              onPress={handleDelete}
-            >
-              <IconSymbol name="trash" size={18} color="#FF6B6B" />
-              <Text style={[styles.optionText, { color: '#FF6B6B' }]}>Delete Budget</Text>
+            <View
+              style={[
+                styles.optionSeparator,
+                { backgroundColor: colors.border },
+              ]}
+            />
+            <TouchableOpacity style={styles.optionItem} onPress={handleDelete}>
+              <IconSymbol name='trash' size={18} color='#FF6B6B' />
+              <Text style={[styles.optionText, { color: '#FF6B6B' }]}>
+                Delete Budget
+              </Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -327,66 +402,111 @@ const BudgetDetailScreen: React.FC = () => {
       <Modal
         visible={showEditModal}
         transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowEditModal(false)}
-      >
+        animationType='slide'
+        onRequestClose={() => setShowEditModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.editModal, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.editTitle, { color: colors.text }]}>Edit Budget</Text>
-            
-            <Text style={[styles.fieldLabel, { color: colors.subText }]}>Budget Name</Text>
+          <View
+            style={[
+              styles.editModal,
+              { backgroundColor: colors.cardBackground },
+            ]}>
+            <Text style={[styles.editTitle, { color: colors.text }]}>
+              Edit Budget
+            </Text>
+
+            <Text style={[styles.fieldLabel, { color: colors.subText }]}>
+              Budget Name
+            </Text>
             <TextInput
-              style={[styles.textInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.border,
+                },
+              ]}
               value={editForm.name}
-              onChangeText={(text) => setEditForm(prev => ({ ...prev, name: text }))}
-              placeholder="Enter budget name"
+              onChangeText={(text) =>
+                setEditForm((prev) => ({ ...prev, name: text }))
+              }
+              placeholder='Enter budget name'
               placeholderTextColor={colors.subText}
             />
 
-            <Text style={[styles.fieldLabel, { color: colors.subText }]}>Monthly Income/Limit</Text>
+            <Text style={[styles.fieldLabel, { color: colors.subText }]}>
+              Monthly Income/Limit
+            </Text>
             <TextInput
-              style={[styles.textInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              style={[
+                styles.textInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.border,
+                },
+              ]}
               value={editForm.income}
-              onChangeText={(text) => setEditForm(prev => ({ ...prev, income: text }))}
-              placeholder="0"
+              onChangeText={(text) =>
+                setEditForm((prev) => ({ ...prev, income: text }))
+              }
+              placeholder='0'
               placeholderTextColor={colors.subText}
-              keyboardType="numeric"
+              keyboardType='numeric'
             />
 
-            <Text style={[styles.fieldLabel, { color: colors.subText }]}>Period Type</Text>
+            <Text style={[styles.fieldLabel, { color: colors.subText }]}>
+              Period Type
+            </Text>
             <View style={styles.periodTypeContainer}>
-              {(['monthly', 'weekly', 'custom', 'noEndDate'] as const).map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    styles.periodOption,
-                    editForm.periodType === type && { backgroundColor: colors.primaryBlue },
-                    { borderColor: colors.border }
-                  ]}
-                  onPress={() => setEditForm(prev => ({ ...prev, periodType: type }))}
-                >
-                  <Text style={[
-                    styles.periodOptionText,
-                    { color: editForm.periodType === type ? '#FFFFFF' : colors.text }
-                  ]}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {(['monthly', 'weekly', 'custom', 'noEndDate'] as const).map(
+                (type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[
+                      styles.periodOption,
+                      editForm.periodType === type && {
+                        backgroundColor: colors.primaryBlue,
+                      },
+                      { borderColor: colors.border },
+                    ]}
+                    onPress={() =>
+                      setEditForm((prev) => ({ ...prev, periodType: type }))
+                    }>
+                    <Text
+                      style={[
+                        styles.periodOptionText,
+                        {
+                          color:
+                            editForm.periodType === type
+                              ? '#FFFFFF'
+                              : colors.text,
+                        },
+                      ]}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              )}
             </View>
 
             <View style={styles.editModalButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.editButton, { backgroundColor: colors.border }]}
-                onPress={() => setShowEditModal(false)}
-              >
-                <Text style={[styles.editButtonText, { color: colors.text }]}>Cancel</Text>
+                onPress={() => setShowEditModal(false)}>
+                <Text style={[styles.editButtonText, { color: colors.text }]}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.editButton, { backgroundColor: colors.primaryBlue }]}
-                onPress={handleEditSubmit}
-              >
-                <Text style={[styles.editButtonText, { color: '#FFFFFF' }]}>Save</Text>
+              <TouchableOpacity
+                style={[
+                  styles.editButton,
+                  { backgroundColor: colors.primaryBlue },
+                ]}
+                onPress={handleEditSubmit}>
+                <Text style={[styles.editButtonText, { color: '#FFFFFF' }]}>
+                  Save
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -396,30 +516,48 @@ const BudgetDetailScreen: React.FC = () => {
       <Modal
         visible={showDeleteConfirm}
         transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowDeleteConfirm(false)}
-      >
+        animationType='fade'
+        onRequestClose={() => setShowDeleteConfirm(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.confirmModal, { backgroundColor: colors.cardBackground }]}>
-            <IconSymbol name="exclamationmark.triangle" size={48} color="#FF6B6B" style={styles.warningIcon} />
-            <Text style={[styles.confirmTitle, { color: colors.text }]}>Delete Budget</Text>
-            <Text style={[styles.confirmMessage, { color: colors.subText }]}>
-              Are you sure you want to delete &ldquo;{budgetDetail?.budget.name}&rdquo;? 
-              {'\n\n'}This will permanently remove the budget and all associated expenses and recurring items. This action cannot be undone.
+          <View
+            style={[
+              styles.confirmModal,
+              { backgroundColor: colors.cardBackground },
+            ]}>
+            <IconSymbol
+              name='exclamationmark.triangle'
+              size={48}
+              color='#FF6B6B'
+              style={styles.warningIcon}
+            />
+            <Text style={[styles.confirmTitle, { color: colors.text }]}>
+              Delete Budget
             </Text>
-            
+            <Text style={[styles.confirmMessage, { color: colors.subText }]}>
+              Are you sure you want to delete &ldquo;{budgetDetail?.budget.name}
+              &rdquo;?
+              {'\n\n'}This will permanently remove the budget and all associated
+              expenses and recurring items. This action cannot be undone.
+            </Text>
+
             <View style={styles.confirmButtons}>
-              <TouchableOpacity 
-                style={[styles.confirmButton, { backgroundColor: colors.border }]}
-                onPress={() => setShowDeleteConfirm(false)}
-              >
-                <Text style={[styles.confirmButtonText, { color: colors.text }]}>Cancel</Text>
+              <TouchableOpacity
+                style={[
+                  styles.confirmButton,
+                  { backgroundColor: colors.border },
+                ]}
+                onPress={() => setShowDeleteConfirm(false)}>
+                <Text
+                  style={[styles.confirmButtonText, { color: colors.text }]}>
+                  Cancel
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.confirmButton, { backgroundColor: '#FF6B6B' }]}
-                onPress={handleDeleteConfirm}
-              >
-                <Text style={[styles.confirmButtonText, { color: '#FFFFFF' }]}>Delete</Text>
+                onPress={handleDeleteConfirm}>
+                <Text style={[styles.confirmButtonText, { color: '#FFFFFF' }]}>
+                  Delete
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

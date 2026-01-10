@@ -1,4 +1,5 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -18,25 +19,42 @@ export const SpendingSummary: React.FC<SpendingSummaryProps> = ({
   weekSpend,
   colors,
 }) => {
+  const { format } = useCurrencyFormatter();
   return (
     <View style={styles.spendingSection}>
       <View style={styles.spendingRow}>
-        <View style={[styles.spendingCard, { backgroundColor: colors.cardBackground }]}>
-          <View style={[styles.spendingIcon, { backgroundColor: colors.primaryBlue + '20' }]}>
-            <IconSymbol name="calendar" size={16} color={colors.primaryBlue} />
+        <View
+          style={[
+            styles.spendingCard,
+            { backgroundColor: colors.cardBackground },
+          ]}>
+          <View
+            style={[
+              styles.spendingIcon,
+              { backgroundColor: colors.primaryBlue + '20' },
+            ]}>
+            <IconSymbol name='calendar' size={16} color={colors.primaryBlue} />
           </View>
-          <Text style={[styles.spendingLabel, { color: colors.subText }]}>Today&apos;s Spend</Text>
+          <Text style={[styles.spendingLabel, { color: colors.subText }]}>
+            Today&apos;s Spend
+          </Text>
           <Text style={[styles.spendingAmount, { color: colors.text }]}>
-            ${todaysSpend.toFixed(2)}
+            {format(todaysSpend)}
           </Text>
         </View>
-        <View style={[styles.spendingCard, { backgroundColor: colors.cardBackground }]}>
+        <View
+          style={[
+            styles.spendingCard,
+            { backgroundColor: colors.cardBackground },
+          ]}>
           <View style={[styles.spendingIcon, { backgroundColor: '#9B59B620' }]}>
-            <IconSymbol name="calendar" size={16} color="#9B59B6" />
+            <IconSymbol name='calendar' size={16} color='#9B59B6' />
           </View>
-          <Text style={[styles.spendingLabel, { color: colors.subText }]}>This Week</Text>
+          <Text style={[styles.spendingLabel, { color: colors.subText }]}>
+            This Week
+          </Text>
           <Text style={[styles.spendingAmount, { color: colors.text }]}>
-            ${weekSpend.toFixed(2)}
+            {format(weekSpend)}
           </Text>
         </View>
       </View>

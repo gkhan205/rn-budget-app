@@ -1,7 +1,8 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { RecurringExpense } from '@/db/schema/recurringExpenses';
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface RecurringExpensesListProps {
   recurringExpenses: RecurringExpense[];
@@ -10,14 +11,20 @@ interface RecurringExpensesListProps {
     text: string;
     subText: string;
     primaryBlue: string;
+    red: string;
   };
+  onDetach?: (recurringExpenseId: string) => void;
 }
 
 export const RecurringExpensesList: React.FC<RecurringExpensesListProps> = ({
   recurringExpenses,
   colors,
+  onDetach,
 }) => {
-  const activeRecurring = recurringExpenses.filter(re => re.isActive).slice(0, 3);
+  const { format } = useCurrencyFormatter();
+  const activeRecurring = recurringExpenses
+    .filter((re) => re.isActive)
+    .slice(0, 3);
 
   const getNextDueText = (recurringExpense: RecurringExpense): string => {
     // Simple implementation - in real app, calculate based on frequency and last payment
@@ -50,9 +57,19 @@ export const RecurringExpensesList: React.FC<RecurringExpensesListProps> = ({
   if (activeRecurring.length === 0) {
     return (
       <View style={styles.recurringSection}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Recurring</Text>
-        <View style={[styles.emptyState, { backgroundColor: colors.cardBackground }]}>
-          <IconSymbol name="arrow.triangle.2.circlepath" size={24} color={colors.subText} />
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Upcoming Recurring
+        </Text>
+        <View
+          style={[
+            styles.emptyState,
+            { backgroundColor: colors.cardBackground },
+          ]}>
+          <IconSymbol
+            name='arrow.triangle.2.circlepath'
+            size={24}
+            color={colors.subText}
+          />
           <Text style={[styles.emptyStateText, { color: colors.subText }]}>
             No recurring expenses
           </Text>
@@ -63,27 +80,50 @@ export const RecurringExpensesList: React.FC<RecurringExpensesListProps> = ({
 
   return (
     <View style={styles.recurringSection}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Recurring</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>
+        Upcoming Recurring
+      </Text>
       {activeRecurring.map((item) => (
-        <View key={item.id} style={[styles.recurringItem, { backgroundColor: colors.cardBackground }]}>
+        <View
+          key={item.id}
+          style={[
+            styles.recurringItem,
+            { backgroundColor: colors.cardBackground },
+          ]}>
           <View style={styles.recurringItemLeft}>
-            <View style={[styles.recurringIcon, { backgroundColor: colors.primaryBlue + '20' }]}>
-              <IconSymbol 
-                name={getRecurringIcon(item.frequency) as any} 
-                size={16} 
-                color={colors.primaryBlue} 
+            <View
+              style={[
+                styles.recurringIcon,
+                { backgroundColor: colors.primaryBlue + '20' },
+              ]}>
+              <IconSymbol
+                name={getRecurringIcon(item.frequency) as any}
+                size={16}
+                color={colors.primaryBlue}
               />
             </View>
-            <View>
-              <Text style={[styles.recurringName, { color: colors.text }]}>{item.name}</Text>
+            <View style={styles.recurringDetails}>
+              <Text style={[styles.recurringName, { color: colors.text }]}>
+                {item.name}
+              </Text>
               <Text style={[styles.recurringDue, { color: colors.subText }]}>
                 {getNextDueText(item)}
               </Text>
             </View>
           </View>
-          <Text style={[styles.recurringAmount, { color: colors.text }]}>
-            ${item.amount.toFixed(2)}
-          </Text>
+          <View style={styles.recurringItemRight}>
+            <Text style={[styles.recurringAmount, { color: colors.text }]}>
+              {format(item.amount)}
+            </Text>
+            {onDetach && (
+              <TouchableOpacity
+                style={styles.detachButton}
+                onPress={() => onDetach(item.id)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <IconSymbol name='xmark' size={14} color={colors.red} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       ))}
     </View>
@@ -120,6 +160,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
+  recurringDetails: {
+    flex: 1,
+  },
   recurringName: {
     fontSize: 16,
     fontWeight: '500',
@@ -128,9 +171,22 @@ const styles = StyleSheet.create({
   recurringDue: {
     fontSize: 14,
   },
+  recurringItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   recurringAmount: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  detachButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(231, 76, 60, 0.1)',
   },
   emptyState: {
     padding: 32,

@@ -1,6 +1,7 @@
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import type { RecurringExpense } from '@/db/schema/recurringExpenses';
 import { RecurringExpenseService } from '@/db/services/recurringExpenseService';
+import { useCurrencyFormatter } from '@/hooks';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -29,6 +30,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ colors }) => {
   >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { format } = useCurrencyFormatter();
 
   // Load recurring expenses
   const loadRecurringExpenses = useCallback(async () => {
@@ -61,8 +63,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ colors }) => {
   };
 
   const handleRecurringPress = (recurringExpense: RecurringExpense) => {
-    // TODO: Navigate to recurring expense details/edit screen
-    console.log('Recurring expense pressed:', recurringExpense.name);
+    router.push(`/recurring-detail?id=${recurringExpense.id}`);
   };
 
   const formatFrequency = (frequency: string): string => {
@@ -144,7 +145,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ colors }) => {
 
       <View style={styles.recurringRight}>
         <Text style={[styles.recurringAmount, { color: colors.text }]}>
-          {formatAmount(item.amount)}
+          {format(item.amount)}
         </Text>
         <IconSymbol name='chevron.right' size={16} color={colors.subText} />
       </View>

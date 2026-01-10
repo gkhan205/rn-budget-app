@@ -1,3 +1,4 @@
+import { Currency } from '@/state';
 import { Expense } from '../db/models/Expense';
 import { RecurringExpense } from '../db/models/RecurringExpense';
 import { Budget } from '../db/schema/budgets';
@@ -89,7 +90,7 @@ export function getProgressPercentage(
 
   const totalAllocated = totalSpent + totalPlanned;
   const percentage = (totalAllocated / budget.income) * 100;
-  
+
   // Return percentage rounded to 2 decimal places
   return Math.round(percentage * 100) / 100;
 }
@@ -109,7 +110,11 @@ export function calculateBudgetMetrics(
   const totalSpent = getTotalSpent(expenses);
   const totalPlanned = getTotalPlanned(recurringExpenses);
   const remainingAmount = getRemainingAmount(budget, totalSpent, totalPlanned);
-  const progressPercentage = getProgressPercentage(budget, totalSpent, totalPlanned);
+  const progressPercentage = getProgressPercentage(
+    budget,
+    totalSpent,
+    totalPlanned
+  );
 
   return {
     totalSpent,
@@ -154,8 +159,12 @@ export function isBudgetAtRisk(
   totalPlanned: number,
   warningThreshold: number = 80
 ): boolean {
-  const progressPercentage = getProgressPercentage(budget, totalSpent, totalPlanned);
-  
+  const progressPercentage = getProgressPercentage(
+    budget,
+    totalSpent,
+    totalPlanned
+  );
+
   // If no limit or no progress percentage, not at risk
   if (progressPercentage === null) {
     return false;
@@ -167,22 +176,59 @@ export function isBudgetAtRisk(
 /**
  * Helper function to format currency amounts
  * @param amount - Amount to format
- * @param currency - Currency symbol (default: '$')
+ * @param currency - Currency symbol (default: '₹' for Indian Rupee)
  * @param showSign - Whether to show + or - sign (default: false)
  * @returns Formatted currency string
  */
 export function formatCurrency(
   amount: number,
-  currency: string = '$',
+  currency: Currency,
   showSign: boolean = false
 ): string {
-  const absAmount = Math.abs(amount);
-  const formattedAmount = absAmount.toFixed(2);
-  
-  if (showSign && amount !== 0) {
-    const sign = amount >= 0 ? '+' : '-';
-    return `${sign}${currency}${formattedAmount}`;
+  return new Intl.NumberFormat(currency.locale, {
+    style: 'currency',
+    currency: currency.code,
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  }).format(amount);
+}
+
+/**
+ * Helper function to format currency amounts with currency object
+ * @param amount - Amount to format
+ * @param currencyObj - Currency object with symbol
+ * @param showSign - Whether to show + or - sign (default: false)
+ * @returns Formatted currency string
+ */
+export function formatCurrencyWithObj(
+  amount: number,
+  currencyObj?: { symbol: string },
+  showSign: boolean = false
+): string {
+  const symbol = currencyObj as Currency;
+  return formatCurrency(amount, symbol, showSign);
+}
+
+/**
+ * Format amount with currency symbol (no decimals) - for short display
+ */
+export function formatCurrencyShort(
+  amount: number,
+  currency: string = '₹'
+): string {
+  if (amount >= 1000) {
+    return `${currency}${(amount / 1000).toFixed(1)}k`;
   }
-  
-  return `${currency}${formattedAmount}`;
+
+  return `${currency}${amount.toFixed(0)}`;
+}
+
+/**
+ * Parse currency string to number (remove symbol and convert to number)
+ */
+export function parseCurrency(value: string): number {
+  // Remove all non-numeric characters except decimal point and minus sign
+  const numericString = value.replace(/[^\d.-]/g, '');
+  const parsed = parseFloat(numericString);
+  return isNaN(parsed) ? 0 : parsed;
 }

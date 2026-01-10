@@ -1,4 +1,5 @@
 import type { DailySpendingTrend } from '@/db/services/statsService';
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -13,8 +14,9 @@ const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({
   colors,
   selectedTab = 'Expense',
 }) => {
+  const { formatShort } = useCurrencyFormatter();
   const chartPoints = dailyTrends.slice(0, 7); // Show up to 7 points for readability
-  const maxValue = Math.max(...dailyTrends.map(d => d.totalAmount), 500); // Minimum scale of 500
+  const maxValue = Math.max(...dailyTrends.map((d) => d.totalAmount), 500); // Minimum scale of 500
 
   const getChartTitle = () => {
     return selectedTab === 'Income' ? 'Income Trends' : 'Spending Trends';
@@ -22,12 +24,12 @@ const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({
 
   const getHighestPoint = () => {
     if (chartPoints.length === 0) return null;
-    
-    const highestPoint = chartPoints.reduce((max, current) => 
+
+    const highestPoint = chartPoints.reduce((max, current) =>
       current.totalAmount > max.totalAmount ? current : max
     );
-    const highestIndex = chartPoints.findIndex(p => p === highestPoint);
-    
+    const highestIndex = chartPoints.findIndex((p) => p === highestPoint);
+
     return { point: highestPoint, index: highestIndex };
   };
 
@@ -55,16 +57,36 @@ const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({
   const renderGridLines = () => (
     <>
       <View style={[styles.gridLine, { backgroundColor: colors.border }]} />
-      <View style={[styles.gridLine, { backgroundColor: colors.border, top: '20%' }]} />
-      <View style={[styles.gridLine, { backgroundColor: colors.border, top: '40%' }]} />
-      <View style={[styles.gridLine, { backgroundColor: colors.border, top: '60%' }]} />
-      <View style={[styles.gridLine, { backgroundColor: colors.border, top: '80%' }]} />
+      <View
+        style={[
+          styles.gridLine,
+          { backgroundColor: colors.border, top: '20%' },
+        ]}
+      />
+      <View
+        style={[
+          styles.gridLine,
+          { backgroundColor: colors.border, top: '40%' },
+        ]}
+      />
+      <View
+        style={[
+          styles.gridLine,
+          { backgroundColor: colors.border, top: '60%' },
+        ]}
+      />
+      <View
+        style={[
+          styles.gridLine,
+          { backgroundColor: colors.border, top: '80%' },
+        ]}
+      />
     </>
   );
 
   const renderChartPoints = () => {
     const highest = getHighestPoint();
-    
+
     return (
       <>
         {chartPoints.map((point, index) => (
@@ -76,25 +98,31 @@ const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({
                 left: `${(index / Math.max(chartPoints.length - 1, 1)) * 90}%`,
                 bottom: `${(point.totalAmount / maxValue) * 100}%`,
                 backgroundColor: colors.chartLine,
-              }
+              },
             ]}
           />
         ))}
-        
+
         {highest && (
-          <View style={[
-            styles.highlightPoint, 
-            { 
-              left: `${(highest.index / Math.max(chartPoints.length - 1, 1)) * 90}%`, 
-              bottom: `${(highest.point.totalAmount / maxValue) * 100}%` 
-            }
-          ]}>
+          <View
+            style={[
+              styles.highlightPoint,
+              {
+                left: `${
+                  (highest.index / Math.max(chartPoints.length - 1, 1)) * 90
+                }%`,
+                bottom: `${(highest.point.totalAmount / maxValue) * 100}%`,
+              },
+            ]}>
             <View style={[styles.pointLabel, { backgroundColor: colors.text }]}>
-              <Text style={[styles.pointLabelText, { color: colors.background }]}>
-                ${highest.point.totalAmount.toFixed(0)}
+              <Text
+                style={[styles.pointLabelText, { color: colors.background }]}>
+                {formatShort(highest.point.totalAmount)}
               </Text>
             </View>
-            <View style={[styles.point, { backgroundColor: colors.chartLine }]} />
+            <View
+              style={[styles.point, { backgroundColor: colors.chartLine }]}
+            />
           </View>
         )}
       </>
@@ -121,19 +149,17 @@ const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({
           Daily
         </Text>
       </View>
-      
+
       <View style={styles.chartContainer}>
         <View style={styles.chartArea}>
           {renderYAxis()}
-          
+
           <View style={styles.chartPlot}>
             {renderGridLines()}
-            <View style={styles.chartLine}>
-              {renderChartPoints()}
-            </View>
+            <View style={styles.chartLine}>{renderChartPoints()}</View>
           </View>
         </View>
-        
+
         {renderXAxis()}
       </View>
     </View>

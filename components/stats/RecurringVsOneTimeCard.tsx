@@ -1,4 +1,5 @@
 import type { RecurringVsNonRecurringStats } from '@/db/services/statsService';
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -13,9 +14,12 @@ const RecurringVsOneTimeCard: React.FC<RecurringVsOneTimeCardProps> = ({
   colors,
   selectedTab = 'Expense',
 }) => {
+  const { format } = useCurrencyFormatter();
+
   if (!recurringStats) {
     return (
-      <View style={[styles.section, { backgroundColor: colors.cardBackground }]}>
+      <View
+        style={[styles.section, { backgroundColor: colors.cardBackground }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           Recurring vs. One-Time
         </Text>
@@ -26,13 +30,6 @@ const RecurringVsOneTimeCard: React.FC<RecurringVsOneTimeCardProps> = ({
     );
   }
 
-  const formatAmount = (amount: number) => {
-    return amount.toLocaleString('en-US', { 
-      minimumFractionDigits: 0, 
-      maximumFractionDigits: 0 
-    });
-  };
-
   const renderRecurringSection = () => (
     <View style={styles.fixedSection}>
       <Text style={[styles.fixedLabel, { color: colors.subText }]}>
@@ -41,15 +38,17 @@ const RecurringVsOneTimeCard: React.FC<RecurringVsOneTimeCardProps> = ({
       <Text style={[styles.fixedPercentage, { color: colors.text }]}>
         {recurringStats.recurringPercentage}%
       </Text>
-      <View style={[
-        styles.fixedBar, 
-        { 
-          backgroundColor: colors.primaryBlue,
-          width: `${Math.max(recurringStats.recurringPercentage, 10)}%`
-        }
-      ]} />
+      <View
+        style={[
+          styles.fixedBar,
+          {
+            backgroundColor: colors.primaryBlue,
+            width: `${Math.max(recurringStats.recurringPercentage, 10)}%`,
+          },
+        ]}
+      />
       <Text style={[styles.fixedAmount, { color: colors.text }]}>
-        ${formatAmount(recurringStats.recurringTotal)}
+        {format(recurringStats.recurringTotal, false)}
       </Text>
     </View>
   );
@@ -62,24 +61,31 @@ const RecurringVsOneTimeCard: React.FC<RecurringVsOneTimeCardProps> = ({
       <Text style={[styles.variablePercentage, { color: colors.text }]}>
         {recurringStats.nonRecurringPercentage}%
       </Text>
-      <View style={[
-        styles.variableBar, 
-        { 
-          backgroundColor: colors.green,
-          width: `${Math.max(recurringStats.nonRecurringPercentage, 10)}%`
-        }
-      ]} />
+      <View
+        style={[
+          styles.variableBar,
+          {
+            backgroundColor: colors.green,
+            width: `${Math.max(recurringStats.nonRecurringPercentage, 10)}%`,
+          },
+        ]}
+      />
       <Text style={[styles.variableAmount, { color: colors.text }]}>
-        ${formatAmount(recurringStats.nonRecurringTotal)}
+        {format(recurringStats.nonRecurringTotal, false)}
       </Text>
     </View>
   );
 
   const renderDetails = () => (
-    <View style={[styles.recurringDetails, { borderTopColor: 'rgba(255, 255, 255, 0.1)' }]}>
+    <View
+      style={[
+        styles.recurringDetails,
+        { borderTopColor: 'rgba(255, 255, 255, 0.1)' },
+      ]}>
       <Text style={[styles.recurringDetailText, { color: colors.subText }]}>
-        {recurringStats.recurringCount} recurring {selectedTab.toLowerCase()} transactions • {' '}
-        {recurringStats.nonRecurringCount} one-time {selectedTab.toLowerCase()} transactions
+        {recurringStats.recurringCount} recurring {selectedTab.toLowerCase()}{' '}
+        transactions • {recurringStats.nonRecurringCount} one-time{' '}
+        {selectedTab.toLowerCase()} transactions
       </Text>
     </View>
   );
@@ -89,12 +95,12 @@ const RecurringVsOneTimeCard: React.FC<RecurringVsOneTimeCardProps> = ({
       <Text style={[styles.sectionTitle, { color: colors.text }]}>
         Recurring vs. One-Time
       </Text>
-      
+
       <View style={styles.fixedVariableContainer}>
         {renderRecurringSection()}
         {renderOneTimeSection()}
       </View>
-      
+
       {renderDetails()}
     </View>
   );

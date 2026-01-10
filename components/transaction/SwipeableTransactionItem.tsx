@@ -1,3 +1,4 @@
+import { useCurrencyFormatter } from '@/hooks';
 import type { TransactionItem } from '@/hooks/useTransactions';
 import React from 'react';
 import {
@@ -33,6 +34,8 @@ const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const { format } = useCurrencyFormatter();
+
   const renderRightActions = (
     progress: Animated.AnimatedAddition<number>,
     dragX: Animated.AnimatedAddition<number>
@@ -69,13 +72,11 @@ const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> = ({
             {
               transform: [{ translateX: editTranslate }, { scale: editScale }],
             },
-          ]}
-        >
+          ]}>
           <TouchableOpacity
             style={styles.actionButtonInner}
-            onPress={() => onEdit(transaction)}
-          >
-            <IconSymbol name="pencil" size={20} color="#FFFFFF" />
+            onPress={() => onEdit(transaction)}>
+            <IconSymbol name='pencil' size={20} color='#FFFFFF' />
             <Text style={styles.actionText}>Edit</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -86,15 +87,16 @@ const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> = ({
             styles.deleteButton,
             { backgroundColor: colors.expenseRed },
             {
-              transform: [{ translateX: deleteTranslate }, { scale: deleteScale }],
+              transform: [
+                { translateX: deleteTranslate },
+                { scale: deleteScale },
+              ],
             },
-          ]}
-        >
+          ]}>
           <TouchableOpacity
             style={styles.actionButtonInner}
-            onPress={() => onDelete(transaction)}
-          >
-            <IconSymbol name="trash" size={20} color="#FFFFFF" />
+            onPress={() => onDelete(transaction)}>
+            <IconSymbol name='trash' size={20} color='#FFFFFF' />
             <Text style={styles.actionText}>Delete</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -106,15 +108,14 @@ const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> = ({
     <Swipeable
       renderRightActions={renderRightActions}
       rightThreshold={40}
-      friction={1.5}
-    >
-      <View style={[styles.transactionRow, { borderBottomColor: colors.border }]}>
+      friction={1.5}>
+      <View
+        style={[styles.transactionRow, { borderBottomColor: colors.border }]}>
         <View
           style={[
             styles.transactionIcon,
             { backgroundColor: transaction.iconColor + '20' },
-          ]}
-        >
+          ]}>
           <IconSymbol
             name={transaction.icon as any}
             size={20}
@@ -125,22 +126,28 @@ const SwipeableTransactionItem: React.FC<SwipeableTransactionItemProps> = ({
         <View style={styles.transactionDetails}>
           <Text
             style={[styles.transactionName, { color: colors.text }]}
-            numberOfLines={1}
-          >
+            numberOfLines={1}>
             {transaction.name}
           </Text>
           <Text
             style={[styles.transactionMeta, { color: colors.subText }]}
-            numberOfLines={1}
-          >
+            numberOfLines={1}>
             {transaction.account} • {transaction.category}
           </Text>
         </View>
 
         <Text
-          style={[styles.transactionAmount, { color: transaction.type === "income" ? colors.incomeGreen : colors.expenseRed }]}
-        >
-          {transaction.type === "income" ? '+' : '-'} ${transaction.amount.toFixed(2)}
+          style={[
+            styles.transactionAmount,
+            {
+              color:
+                transaction.type === 'income'
+                  ? colors.incomeGreen
+                  : colors.expenseRed,
+            },
+          ]}>
+          {transaction.type === 'income' ? '+' : '-'}{' '}
+          {format(Math.abs(transaction.amount))}
         </Text>
       </View>
     </Swipeable>

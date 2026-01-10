@@ -60,8 +60,7 @@ const AccountsManager: React.FC<AccountsManagerProps> = ({ colors }) => {
   };
 
   const handleAccountPress = (account: Account) => {
-    // TODO: Navigate to account details/edit screen
-    console.log('Account pressed:', account.name);
+    router.push(`/account-detail?id=${account.id}`);
   };
 
   const formatBalance = (balance: number): string => {

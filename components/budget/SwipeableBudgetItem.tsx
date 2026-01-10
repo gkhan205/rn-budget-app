@@ -1,10 +1,11 @@
+import { useCurrencyFormatter } from '@/hooks';
 import React from 'react';
 import {
-    Animated,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { IconSymbol } from '../ui/icon-symbol';
@@ -45,6 +46,8 @@ const SwipeableBudgetItem: React.FC<SwipeableBudgetItemProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const { format } = useCurrencyFormatter();
+
   const renderRightActions = (
     progress: Animated.AnimatedAddition<number>,
     dragX: Animated.AnimatedAddition<number>
@@ -81,13 +84,11 @@ const SwipeableBudgetItem: React.FC<SwipeableBudgetItemProps> = ({
             {
               transform: [{ translateX: editTranslate }, { scale: editScale }],
             },
-          ]}
-        >
+          ]}>
           <TouchableOpacity
             style={styles.actionButtonInner}
-            onPress={() => onEdit(budget)}
-          >
-            <IconSymbol name="pencil" size={20} color="#FFFFFF" />
+            onPress={() => onEdit(budget)}>
+            <IconSymbol name='pencil' size={20} color='#FFFFFF' />
             <Text style={styles.actionText}>Edit</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -98,15 +99,16 @@ const SwipeableBudgetItem: React.FC<SwipeableBudgetItemProps> = ({
             styles.deleteButton,
             { backgroundColor: colors.expenseRed },
             {
-              transform: [{ translateX: deleteTranslate }, { scale: deleteScale }],
+              transform: [
+                { translateX: deleteTranslate },
+                { scale: deleteScale },
+              ],
             },
-          ]}
-        >
+          ]}>
           <TouchableOpacity
             style={styles.actionButtonInner}
-            onPress={() => onDelete(budget)}
-          >
-            <IconSymbol name="trash" size={20} color="#FFFFFF" />
+            onPress={() => onDelete(budget)}>
+            <IconSymbol name='trash' size={20} color='#FFFFFF' />
             <Text style={styles.actionText}>Delete</Text>
           </TouchableOpacity>
         </Animated.View>
@@ -118,27 +120,39 @@ const SwipeableBudgetItem: React.FC<SwipeableBudgetItemProps> = ({
     <Swipeable
       renderRightActions={renderRightActions}
       rightThreshold={40}
-      friction={1.5}
-    >
-      <TouchableOpacity 
+      friction={1.5}>
+      <TouchableOpacity
         style={[styles.budgetCard, { backgroundColor: colors.cardBackground }]}
-        onPress={onPress}
-      >
+        onPress={onPress}>
         <View style={styles.budgetHeader}>
           <View style={styles.budgetInfo}>
-            <View style={[styles.iconContainer, { backgroundColor: budget.iconColor + '20' }]}>
-              <IconSymbol name={budget.icon as any} size={20} color={budget.iconColor} />
+            <View
+              style={[
+                styles.iconContainer,
+                { backgroundColor: budget.iconColor + '20' },
+              ]}>
+              <IconSymbol
+                name={budget.icon as any}
+                size={20}
+                color={budget.iconColor}
+              />
             </View>
             <View style={styles.budgetDetails}>
-              <Text style={[styles.budgetName, { color: colors.text }]}>{budget.name}</Text>
-              <Text style={[styles.budgetPeriod, { color: colors.subText }]}>{budget.period}</Text>
+              <Text style={[styles.budgetName, { color: colors.text }]}>
+                {budget.name}
+              </Text>
+              <Text style={[styles.budgetPeriod, { color: colors.subText }]}>
+                {budget.period}
+              </Text>
             </View>
           </View>
           <View style={styles.budgetAmount}>
-            <Text style={[styles.spentAmount, { color: colors.text }]}>${budget.spent.toFixed(2)}</Text>
+            <Text style={[styles.spentAmount, { color: colors.text }]}>
+              {format(budget.spent)}
+            </Text>
             {budget.limit ? (
               <Text style={[styles.limitAmount, { color: colors.subText }]}>
-                of ${budget.limit.toFixed(2)} limit
+                of {format(budget.limit)} limit
               </Text>
             ) : (
               <Text style={[styles.limitAmount, { color: colors.subText }]}>
@@ -154,7 +168,9 @@ const SwipeableBudgetItem: React.FC<SwipeableBudgetItemProps> = ({
                 styles.progressFill,
                 {
                   backgroundColor: budget.progressColor,
-                  width: budget.percentage ? `${Math.min(budget.percentage, 100)}%` : '0%',
+                  width: budget.percentage
+                    ? `${Math.min(budget.percentage, 100)}%`
+                    : '0%',
                 },
               ]}
             />
@@ -165,7 +181,7 @@ const SwipeableBudgetItem: React.FC<SwipeableBudgetItemProps> = ({
         </View>
         {budget.recurringCount > 0 && (
           <View style={styles.recurringContainer}>
-            <IconSymbol name="repeat" size={12} color={colors.subText} />
+            <IconSymbol name='repeat' size={12} color={colors.subText} />
             <Text style={[styles.recurringText, { color: colors.subText }]}>
               {budget.recurringCount} recurring expenses
             </Text>
